@@ -6,49 +6,50 @@ O sistema é um agente autônomo projetado para coletar, filtrar, sumarizar e di
 ## 2. Arquitetura do Sistema
 O projeto segue uma arquitetura modular em Python:
 
-- **`interface.py`**: Painel de controle gráfico (Tkinter) para configuração de e-mails, filtros de domínio, agendamento e execução manual.
-- **`main.py`**: Orquestrador principal que executa o fluxo de trabalho (coleta -> resumo -> salvamento -> disparo).
-- **`fetcher.py`**: Motor de busca e scraping que utiliza Google News RSS para encontrar notícias recentes em diferentes pautas (Geral, Jurídico e Internacional).
-- **`summarizer.py`**: Integração com a API do Google Gemini (2.5 Flash) para transformar os metadados brutos das notícias em um texto narrativo e engajador formatado para WhatsApp.
-- **`storage.py`**: Módulo de persistência local que organiza o histórico de boletins em formato Markdown na pasta `history/`.
-- **`emailer.py`**: Módulo de comunicação que utiliza SMTP (Gmail) para enviar o relatório final.
+- **`interface.py`**: Painel de controle gráfico (Tkinter) para configuração de e-mails, filtros, WhatsApp, agendamento e acionamento manual. Agora inicializa a infraestrutura Docker automaticamente em background.
+- **`main.py`**: Orquestrador principal que executa o fluxo de trabalho.
+- **`fetcher.py`**: Motor de busca (Google News RSS).
+- **`summarizer.py`**: Integração com a API do Google Gemini (2.5 Flash).
+- **`storage.py`**: Módulo de persistência local na pasta `history/`.
+- **`emailer.py`**: Módulo de comunicação (SMTP Gmail).
+- **`whatsapp_sender.py`**: Controlador de integração que se comunica com a **Evolution API local (Docker)** para disparar as mensagens formatadas.
+- **`reconectar_whatsapp.py`**: Script de contingência executável via interface para reiniciar a instância da Evolution API e renderizar QR Code no navegador para re-autenticação.
 
 ## 3. Tecnologias Utilizadas
 - **Linguagem**: Python 3.x
 - **Interface**: Tkinter (nativa)
 - **Inteligência Artificial**: Google Gemini API (gemini-2.5-flash)
-- **Scraping/Coleta**: Feedparser (RSS)
-- **Automação de Agendamento**: Windows Task Scheduler (via Powershell/schtasks)
-- **Segurança**: Variáveis de ambiente (.env) para proteção de credenciais.
+- **Infraestrutura WhatsApp**: Docker, Docker Compose e Evolution API (v1.8.2)
+- **Automação de Agendamento**: Windows Task Scheduler
 
 ## 4. Funcionalidades Detalhadas
 
-### 4.1 Coleta de Notícias (Fetcher)
-- Varredura em 4 frentes: IA Generativa Geral (Brasil), Mundo da Tecnologia (Inglês), Impactos Jurídicos (Brasil) e Fronteira da IA (Canais oficiais como OpenAI e DeepMind).
-- Sistema de filtragem por domínios ignorados (negativação de sites indesejados).
+### 4.1 Coleta e Sumarização
+- Varredura de notícias globais, nacionais e jurídicas via RSS.
+- A IA constrói as narrativas e inclui links das referências, adaptando o formato ao padrão de leitura do WhatsApp.
 
-### 4.2 Inteligência e Sumarização (Summarizer)
-- Uso de Engenharia de Prompt para garantir que a IA selecione ao menos 10 notícias.
-- Expansão de conteúdo (3 a 5 linhas por notícia) para que o leitor não precise sair do WhatsApp.
-- Inclusão automática de links de referência.
+### 4.2 Envio e Infraestrutura (WhatsApp)
+- Execução local da **Evolution API**, blindando contra quedas de terceiros e APIs instáveis.
+- Autostart de infraestrutura (o programa detecta se o Docker Desktop está fechado e o inicia silenciosamente).
 
 ### 4.3 Agendamento
-- Interface gráfica para configurar o Windows Task Scheduler.
-- Execução semanal recorrente.
-- Lógica de prevenção de duplicidade (verifica se um boletim já foi enviado na data atual antes de rodar).
+- Prevenção de duplicidade nativa (o mesmo boletim não roda duas vezes no mesmo dia).
+- Gerenciamento simplificado de tarefas pelo Windows Task Scheduler configurado pela UI.
 
 ## 5. Estrutura de Pastas
 ```text
 Automação Busca Noticias de IA/
-├── app/ api-client (em desenvolvimento)
 ├── .venv/            # Ambiente virtual Python
 ├── docs/             # Documentação e especificações
 ├── history/          # Histórico de boletins gerados (.md)
 ├── scripts/          # scripts auxiliares
 ├── config.json       # Configurações de filtros e destinatários
+├── docker-compose.yml# Infraestrutura da Evolution API
+├── qrcode.html / png # Renderização transitória para conexão WhatsApp
 ├── .env              # Chaves de API e senhas (ignorado pelo Git)
 ├── interface.py      # Executável do Painel de Controle
-└── main.py           # Script de execução autônoma
+├── reconectar_whatsapp.py # Rotina de reautenticação com WhatsApp
+└── main.py           # Script de execução autônoma (Orquestrador)
 ```
 
 ## 6. Configuração de Variáveis (Exemplo de .env)
@@ -56,7 +57,11 @@ Automação Busca Noticias de IA/
 GEMINI_API_KEY=sua_chave_aqui
 EMAIL_ADDRESS=seu_email@gmail.com
 EMAIL_APP_PASSWORD=sua_senha_de_app_google
+EVOLUTION_API_URL=http://localhost:8080
+EVOLUTION_API_KEY=42247710-6003-490b-936b-67a6d8d65451
+EVOLUTION_INSTANCE=BoletimIA
+WHATSAPP_PHONE=5511999999999
 ```
 
 ---
-*Documento atualizado em 22/04/2026.*
+*Documento atualizado em 07/06/2026.*

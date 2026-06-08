@@ -39,6 +39,12 @@ class BoletimApp:
         lbl_desc = tk.Label(root, text="Configure destinatários, fontes e agende o envio dos boletins automáticos.", font=("Arial", 10), fg="#7f8c8d")
         lbl_desc.pack(pady=(0, 10))
         
+        self.lbl_docker_status = tk.Label(root, text="Serviços (Docker/API): Verificando...", font=("Arial", 10, "italic"), fg="#f39c12")
+        self.lbl_docker_status.pack(pady=(0, 10))
+        
+        # Inicia o Docker e a Evolution API em segundo plano
+        threading.Thread(target=self.iniciar_docker_background, daemon=True).start()
+        
         self.config = carregar_config()
         
         self.notebook = ttk.Notebook(root)
@@ -87,7 +93,10 @@ class BoletimApp:
         self.entry_wa_phone.grid(row=0, column=1, padx=5, pady=2)
 
         btn_salvar_wa = tk.Button(self.tab_geral, text="Salvar Numero de WhatsApp", command=self.salvar_wa_config)
-        btn_salvar_wa.pack(pady=10)
+        btn_salvar_wa.pack(pady=(10, 5))
+
+        btn_reconectar_wa = tk.Button(self.tab_geral, text="📲 Reconectar WhatsApp (Gerar QR Code)", bg="#3498db", fg="white", font=("Arial", 10, "bold"), command=self.reconectar_whatsapp)
+        btn_reconectar_wa.pack(pady=5)
 
     def construir_tab_fontes(self):
         lbl_domains = tk.Label(self.tab_fontes, text="Domínios Negativados (Excluir da busca - 1 por linha):")
@@ -188,6 +197,18 @@ class BoletimApp:
         
         messagebox.showinfo("Sucesso", "Numero de WhatsApp salvo com sucesso!")
 
+    def reconectar_whatsapp(self):
+        script_path = os.path.join(BASE_DIR, "reconectar_whatsapp.py")
+        if not os.path.exists(script_path):
+            messagebox.showerror("Erro", "Script de reconexão não encontrado!")
+            return
+            
+        messagebox.showinfo("Aviso", "O processo será iniciado. Aguarde alguns segundos até o navegador abrir com o novo QR Code.")
+        python_exe = VENV_PYTHON if os.path.exists(VENV_PYTHON) else "python"
+        
+        # Executa o script de reconexão e não bloqueia a interface
+        subprocess.Popen(["cmd.exe", "/c", f'"{python_exe}" "{script_path}"'], cwd=BASE_DIR)
+
     def gerar_agora(self):
         def tarefa():
             try:
@@ -211,6 +232,24 @@ class BoletimApp:
         
         messagebox.showinfo("Aviso", "O processo foi iniciado em segundo plano.\nAguarde, isso pode levar até 1 minuto. Você será avisado quando terminar.")
         threading.Thread(target=tarefa, daemon=True).start()
+
+    def iniciar_docker_background(self):
+        try:
+            from main import ensure_environment
+            logger.info("Iniciando rotina de garantia do Docker via Interface...")
+            
+            self.root.after(0, lambda: self.lbl_docker_status.config(text="Serviços (Docker/API): Iniciando (aguarde)...", fg="#f39c12"))
+            
+            # A função ensure_environment verifica se o Docker está rodando, inicia o Docker Desktop se não estiver, e sobe os containers.
+            success = ensure_environment()
+            
+            if success:
+                self.root.after(0, lambda: self.lbl_docker_status.config(text="Serviços (Docker/API): Online ✅", fg="#27ae60", font=("Arial", 10, "bold")))
+            else:
+                self.root.after(0, lambda: self.lbl_docker_status.config(text="Serviços (Docker/API): Falha ao Iniciar ❌", fg="#c0392b", font=("Arial", 10, "bold")))
+        except Exception as e:
+            logger.error(f"Erro ao tentar iniciar Docker via interface: {e}")
+            self.root.after(0, lambda: self.lbl_docker_status.config(text="Serviços (Docker/API): Erro Crítico ❌", fg="#c0392b", font=("Arial", 10, "bold")))
 
     def get_today(self):
         from datetime import datetime
