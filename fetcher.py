@@ -54,7 +54,7 @@ def fetch_ai_news() -> list[dict]:
     articles.extend(exterior[:15])
     
     # 3. Jurídico focado, academia e portais especializados (15 notícias)
-    juridico = fetch_rss('("inteligência artificial" OR "IA generativa") AND (direito OR jurídico OR advocacia OR tribunais OR ConJur OR STF OR CNJ OR Migalhas OR Jusbrasil OR LexisNexis OR "DSA ACADEMY" OR "FGV Direito SP" OR "Revista do Direito" OR "Atitus" OR "Virtualjus" OR "PUC Minas" OR "Data Privacy Brasil")', "pt-BR", "BR")
+    juridico = fetch_rss('("inteligência artificial" OR "IA generativa") AND (direito OR jurídico OR advocacia OR tribunais OR ConJur OR STF OR STJ OR CNJ OR Migalhas OR JOTA OR Jusbrasil OR LexisNexis OR "Direito Digital" OR LegalTech OR LawTech OR "DSA ACADEMY" OR "FGV Direito SP" OR "Revista do Direito" OR "Atitus" OR "Virtualjus" OR "PUC Minas" OR "Data Privacy Brasil")', "pt-BR", "BR")
     articles.extend(juridico[:15])
     
     # 4. Fronteira da IA e portais de tecnologia de referência (15 notícias)
