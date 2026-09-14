@@ -124,5 +124,7 @@ def summarize_news_for_whatsapp(articles: list[dict]) -> str:
                     time.sleep(1)
 
     logger.error(f"Erro fatal: Todos os modelos do Gemini falharam na sumarização. Último erro: {last_error}")
-    raise last_error
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("Todos os modelos do Gemini falharam na sumarização.")
 
