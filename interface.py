@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext
 import json
 import os
+import sys
 import subprocess
 import threading
 import logging
