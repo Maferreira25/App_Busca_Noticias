@@ -149,7 +149,9 @@ def main():
         logger.info("SUCESSO: Processo finalizado!")
         logger.info(f"O boletim completo está salvo em: {filepath}")
         
-    except Exception as e:
+    except BaseException as e:
+        if isinstance(e, SystemExit) and e.code == 0:
+            sys.exit(0)
         logger.error("Ocorreu um erro letal durante a execução.", exc_info=True)
         sys.exit(1)
 

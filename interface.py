@@ -67,8 +67,8 @@ class BoletimApp:
         btn_frame = tk.Frame(self.tab_geral)
         btn_frame.pack(pady=20)
         
-        btn_gerar = tk.Button(btn_frame, text="⚡ Gerar & Enviar Boletim Agora", font=("Arial", 12, "bold"), bg="#4CAF50", fg="white", command=self.gerar_agora)
-        btn_gerar.pack()
+        self.btn_gerar = tk.Button(btn_frame, text="⚡ Gerar & Enviar Boletim Agora", font=("Arial", 12, "bold"), bg="#4CAF50", fg="white", command=self.gerar_agora)
+        self.btn_gerar.pack()
         
         lbl_emails = tk.Label(self.tab_geral, text="Destinatários de E-mails (1 por linha):")
         lbl_emails.pack(pady=(20, 5), anchor="w", padx=20)
@@ -212,17 +212,34 @@ class BoletimApp:
     def gerar_agora(self):
         def tarefa():
             try:
-                # Usar caminhos absolutos e garantir o cwd correto
                 python_exe = VENV_PYTHON if os.path.exists(VENV_PYTHON) else "python"
                 main_script = os.path.join(BASE_DIR, "main.py")
-                history_pattern_br = os.path.join(BASE_DIR, "history", f"boletim_ia_{self.get_today_br()}*.md")
-                history_pattern_iso = os.path.join(BASE_DIR, "history", f"boletim_ia_{self.get_today()}*.md")
-
-                # Limpeza prévia para permitir nova geração manual no mesmo dia
-                subprocess.run(["powershell", "-Command", f'Remove-Item -Path "{history_pattern_br}", "{history_pattern_iso}" -ErrorAction SilentlyContinue'], check=False)
                 
-                # Execucao do script principal capturando saída
-                res = subprocess.run([python_exe, main_script], capture_output=True, text=True, cwd=BASE_DIR, encoding="utf-8", errors="replace")
+                # Limpeza prévia segura usando biblioteca nativa do Python
+                import glob
+                history_dir = os.path.join(BASE_DIR, "history")
+                if os.path.exists(history_dir):
+                    patterns = [
+                        os.path.join(history_dir, f"boletim_ia_{self.get_today_br()}*.md"),
+                        os.path.join(history_dir, f"boletim_ia_{self.get_today()}*.md"),
+                    ]
+                    for pattern in patterns:
+                        for fpath in glob.glob(pattern):
+                            try:
+                                os.remove(fpath)
+                            except OSError:
+                                pass
+                
+                creation_flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+                res = subprocess.run(
+                    [python_exe, main_script],
+                    capture_output=True,
+                    text=True,
+                    cwd=BASE_DIR,
+                    encoding="utf-8",
+                    errors="replace",
+                    creationflags=creation_flags
+                )
                 
                 if res.returncode != 0:
                     detalhe_erro = ""
@@ -231,23 +248,34 @@ class BoletimApp:
                         try:
                             with open(log_file, "r", encoding="utf-8", errors="replace") as lf:
                                 lines = [l.strip() for l in lf.readlines() if l.strip()]
-                                err_lines = [l for l in lines[-15:] if "ERROR" in l or "Traceback" in l or "Exception" in l or "Error" in l]
+                                err_lines = [l for l in lines[-25:] if "ERROR" in l or "Traceback" in l or "Exception" in l]
                                 if err_lines:
-                                    detalhe_erro = "\n".join(err_lines[-3:])
+                                    detalhe_erro = "\n".join(err_lines[-4:])
                         except Exception:
                             pass
                     if not detalhe_erro:
-                        detalhe_erro = (res.stderr or res.stdout or f"Código de saída: {res.returncode}").strip()
-                    raise RuntimeError(detalhe_erro)
-                
-                messagebox.showinfo("Sucesso Total!", 
-                    "O Boletim foi gerado e enviado com sucesso!\n\n"
-                    "✅ Destinatarios de e-mail notificados.\n"
-                    "✅ Mensagem enviada para o WhatsApp.")
+                        if res.stderr and res.stderr.strip():
+                            detalhe_erro = res.stderr.strip()
+                        else:
+                            detalhe_erro = f"O processo foi finalizado com código {res.returncode}."
+                    
+                    self.root.after(0, lambda msg=detalhe_erro: messagebox.showerror(
+                        "Erro na Geração", 
+                        f"Ocorreu um erro durante a execução:\n\n{msg}"
+                    ))
+                else:
+                    self.root.after(0, lambda: messagebox.showinfo(
+                        "Sucesso Total!", 
+                        "O Boletim foi gerado e enviado com sucesso!\n\n"
+                        "✅ Destinatários de e-mail notificados.\n"
+                        "✅ Mensagem enviada para o WhatsApp."
+                    ))
             except Exception as e:
-                messagebox.showerror("Erro", f"Aconteceu um erro durante a geracao:\n{e}")
+                self.root.after(0, lambda msg=str(e): messagebox.showerror("Erro", f"Aconteceu um erro durante a geração:\n{msg}"))
+            finally:
+                self.root.after(0, lambda: self.btn_gerar.config(state="normal", text="⚡ Gerar & Enviar Boletim Agora"))
         
-        messagebox.showinfo("Aviso", "O processo foi iniciado em segundo plano.\nAguarde, isso pode levar até 1 minuto. Você será avisado quando terminar.")
+        self.btn_gerar.config(state="disabled", text="⏳ Gerando Boletim (aguarde cerca de 1 min)...")
         threading.Thread(target=tarefa, daemon=True).start()
 
     def iniciar_docker_background(self):
