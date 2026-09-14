@@ -6,13 +6,31 @@ logger = logging.getLogger(__name__)
 
 import json
 
-def get_ignored_domains():
+DEFAULT_POSITIVE_DOMAINS = [
+    "conjur.com.br", "migalhas.com.br", "jota.info", "jusbrasil.com.br",
+    "gov.br/anpd", "oab.org.br", "tjsp.jus.br", "tst.jus.br", "stf.jus.br",
+    "stj.jus.br", "cnj.jus.br", "itsrio.org.br", "idp.edu.br", "law.com", "reuters.com",
+    "csail.mit.edu", "cmu.edu", "harvard.edu", "ox.ac.uk", "cam.ac.uk", "turing.ac.uk",
+    "nature.com", "ieee.org", "arxiv.org", "openai.com", "deepmind.google",
+    "anthropic.com", "huggingface.co", "technologyreview.com", "techcrunch.com",
+    "wired.com", "theverge.com", "arstechnica.com"
+]
+
+def get_ignored_domains() -> list[str]:
     try:
         with open("config.json", "r", encoding="utf-8") as f:
             config = json.load(f)
             return config.get("ignored_domains", [])
     except Exception:
         return []
+
+def get_positive_domains() -> list[str]:
+    try:
+        with open("config.json", "r", encoding="utf-8") as f:
+            config = json.load(f)
+            return config.get("positive_domains", DEFAULT_POSITIVE_DOMAINS)
+    except Exception:
+        return DEFAULT_POSITIVE_DOMAINS
 
 def fetch_rss(query: str, lang: str = "pt-BR", country: str = "BR") -> list[dict]:
     encoded_query = urllib.parse.quote(query)
@@ -22,7 +40,6 @@ def fetch_rss(query: str, lang: str = "pt-BR", country: str = "BR") -> list[dict
     feed = feedparser.parse(url)
     
     articles = []
-    # Domínios que não queremos incluir nas pesquisas
     ignored_domains = get_ignored_domains()
     
     for entry in feed.entries:
@@ -41,9 +58,10 @@ def fetch_rss(query: str, lang: str = "pt-BR", country: str = "BR") -> list[dict
 def fetch_ai_news() -> list[dict]:
     """
     Busca notícias sobre IA dos últimos 7 dias via Google News RSS utilizando multicritérios:
-    Geral PT-BR, Exterior EN-US, e Jurídico focado.
+    Geral PT-BR, Exterior EN-US, Jurídico focado e Fronteira Acadêmica/Domínios Positivos.
     """
     articles = []
+    pos_domains = get_positive_domains()
     
     # 1. Geral Brasil focando nas principais empresas de IA (15 notícias)
     brazil = fetch_rss('("inteligência artificial" OR "IA generativa" OR ChatGPT OR OpenAI OR Anthropic OR Google Gemini) -uol -passagens -aéreas -"companhias aéreas" -decolar', "pt-BR", "BR")
@@ -58,15 +76,29 @@ def fetch_ai_news() -> list[dict]:
     articles.extend(juridico[:15])
     
     # 4. Fronteira da IA, centros acadêmicos mundiais e institutos de pesquisa (15 notícias)
-    fronteira = fetch_rss('("AI" OR "artificial intelligence" OR "generative AI") AND (site:openai.com OR site:deepmind.google OR site:anthropic.com OR site:huggingface.co OR site:technologyreview.com OR "MIT" OR "CSAIL" OR "Carnegie Mellon" OR "CMU" OR "Harvard" OR "Oxford University" OR "University of Cambridge" OR "Alan Turing Institute" OR "Nature Machine Intelligence" OR "IEEE" OR site:arxiv.org)', "en-US", "US")
+    # Seleciona domínios configurados pelo usuário para montar a cláusula de busca
+    site_filters = [f"site:{d}" for d in pos_domains if any(k in d for k in ["openai", "deepmind", "anthropic", "huggingface", "mit.edu", "cmu.edu", "harvard.edu", "ox.ac.uk", "nature.com", "arxiv.org", "technologyreview", "techcrunch", "wired", "theverge"])]
+    if not site_filters:
+        site_filters = [f"site:{d}" for d in pos_domains[:8]]
+    sites_str = " OR ".join(site_filters[:10]) if site_filters else "site:openai.com OR site:deepmind.google"
+
+    fronteira = fetch_rss(f'("AI" OR "artificial intelligence" OR "generative AI") AND ({sites_str} OR "MIT" OR "CSAIL" OR "Carnegie Mellon" OR "CMU" OR "Harvard" OR "Oxford University" OR "University of Cambridge" OR "Alan Turing Institute" OR "Nature Machine Intelligence" OR "IEEE" OR site:arxiv.org)', "en-US", "US")
     articles.extend(fronteira[:15])
     
     logger.info(f"Total de notícias mescladas: {len(articles)}")
     
-    # Prevenção de duplicatas
+    # Prevenção de duplicatas com prioridade para domínios positivos
     unique_articles = []
     seen_links = set()
-    for article in articles:
+    
+    # Ordena para dar preferência a artigos que contenham algum domínio positivo configurado
+    def matches_positive_domain(art):
+        l = art['link'].lower()
+        return any(pd in l for pd in pos_domains)
+        
+    sorted_articles = sorted(articles, key=lambda a: 0 if matches_positive_domain(a) else 1)
+    
+    for article in sorted_articles:
         if article['link'] not in seen_links:
             seen_links.add(article['link'])
             unique_articles.append(article)

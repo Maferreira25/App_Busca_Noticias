@@ -18,11 +18,72 @@ CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 VENV_PYTHON = os.path.join(BASE_DIR, ".venv", "Scripts", "python.exe")
 SCHEDULE_SCRIPT = os.path.join(BASE_DIR, "setup_scheduler.ps1")
 
+DEFAULT_POSITIVE_DOMAINS = [
+    "conjur.com.br",
+    "migalhas.com.br",
+    "jota.info",
+    "jusbrasil.com.br",
+    "gov.br/anpd",
+    "oab.org.br",
+    "tjsp.jus.br",
+    "tst.jus.br",
+    "stf.jus.br",
+    "stj.jus.br",
+    "cnj.jus.br",
+    "itsrio.org.br",
+    "idp.edu.br",
+    "law.com",
+    "reuters.com",
+    "csail.mit.edu",
+    "cmu.edu",
+    "harvard.edu",
+    "ox.ac.uk",
+    "cam.ac.uk",
+    "turing.ac.uk",
+    "nature.com",
+    "ieee.org",
+    "arxiv.org",
+    "openai.com",
+    "deepmind.google",
+    "anthropic.com",
+    "huggingface.co",
+    "technologyreview.com",
+    "techcrunch.com",
+    "wired.com",
+    "theverge.com",
+    "arstechnica.com"
+]
+
+DEFAULT_IGNORED_DOMAINS = [
+    "panrotas.com.br",
+    "uol.com.br",
+    "economia.uol.com.br",
+    "tilt.uol.com.br",
+    "viagenspromo.com",
+    "passagens",
+    "melhoresdestinos.com.br",
+    "voegol.com.br",
+    "latamairlines.com",
+    "voeazul.com.br",
+    "aeroin.net",
+    "mercadoeeventos.com.br",
+    "decolar.com"
+]
+
 def carregar_config():
     if not os.path.exists(CONFIG_FILE):
-        return {"emails": [], "ignored_domains": [], "schedule_day": "MON", "schedule_time": "08:00"}
+        return {
+            "emails": [],
+            "ignored_domains": DEFAULT_IGNORED_DOMAINS,
+            "positive_domains": DEFAULT_POSITIVE_DOMAINS,
+            "schedule_day": "MON",
+            "schedule_time": "08:00"
+        }
     with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+        dados = json.load(f)
+        if "positive_domains" not in dados:
+            dados["positive_domains"] = DEFAULT_POSITIVE_DOMAINS
+        return dados
 
 def salvar_config(dados):
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
@@ -32,7 +93,7 @@ class BoletimApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Painel de Automação - Notícias IA")
-        self.root.geometry("600x650")
+        self.root.geometry("680x740")
         
         lbl_title = tk.Label(root, text="🚀 Central de Automação de Notícias de IA", font=("Arial", 16, "bold"), fg="#2c3e50")
         lbl_title.pack(pady=(15, 0))
@@ -100,15 +161,37 @@ class BoletimApp:
         btn_reconectar_wa.pack(pady=5)
 
     def construir_tab_fontes(self):
-        lbl_domains = tk.Label(self.tab_fontes, text="Domínios Negativados (Excluir da busca - 1 por linha):")
-        lbl_domains.pack(pady=(20, 5), anchor="w", padx=20)
+        # 1. Domínios Positivos
+        lbl_pos = tk.Label(self.tab_fontes, text="✅ Domínios Positivos (Fontes monitoradas nas buscas - 1 por linha):", font=("Arial", 10, "bold"), fg="#27ae60")
+        lbl_pos.pack(pady=(15, 3), anchor="w", padx=20)
         
-        self.text_domains = scrolledtext.ScrolledText(self.tab_fontes, width=60, height=15)
-        self.text_domains.pack(padx=20)
-        self.text_domains.insert("1.0", "\n".join(self.config.get("ignored_domains", [])))
+        lbl_pos_sub = tk.Label(self.tab_fontes, text="Todas as fontes de alto relevo (Jurídicas, Acadêmicas e Tecnologia). Edite, adicione ou remova conforme desejar:", font=("Arial", 8), fg="#7f8c8d")
+        lbl_pos_sub.pack(anchor="w", padx=20, pady=(0, 5))
         
-        btn_salvar_fontes = tk.Button(self.tab_fontes, text="Salvar Filtros e Fontes", command=self.salvar_fontes)
-        btn_salvar_fontes.pack(pady=10)
+        self.text_positive_domains = scrolledtext.ScrolledText(self.tab_fontes, width=70, height=10)
+        self.text_positive_domains.pack(padx=20, fill="x")
+        self.text_positive_domains.insert("1.0", "\n".join(self.config.get("positive_domains", DEFAULT_POSITIVE_DOMAINS)))
+        
+        # 2. Domínios Negativados
+        lbl_neg = tk.Label(self.tab_fontes, text="⛔ Domínios Negativados (Excluir da busca - 1 por linha):", font=("Arial", 10, "bold"), fg="#c0392b")
+        lbl_neg.pack(pady=(15, 3), anchor="w", padx=20)
+        
+        lbl_neg_sub = tk.Label(self.tab_fontes, text="Sites que devem ser excluídos mesmo que mencionem termos de IA (ex: passagens aéreas, fofocas):", font=("Arial", 8), fg="#7f8c8d")
+        lbl_neg_sub.pack(anchor="w", padx=20, pady=(0, 5))
+        
+        self.text_domains = scrolledtext.ScrolledText(self.tab_fontes, width=70, height=7)
+        self.text_domains.pack(padx=20, fill="x")
+        self.text_domains.insert("1.0", "\n".join(self.config.get("ignored_domains", DEFAULT_IGNORED_DOMAINS)))
+        
+        # Botões de ação
+        frame_btn_fontes = tk.Frame(self.tab_fontes)
+        frame_btn_fontes.pack(pady=15)
+        
+        btn_salvar_fontes = tk.Button(frame_btn_fontes, text="💾 Salvar Configurações de Fontes", font=("Arial", 10, "bold"), bg="#2980b9", fg="white", command=self.salvar_fontes)
+        btn_salvar_fontes.pack(side="left", padx=10)
+        
+        btn_restaurar = tk.Button(frame_btn_fontes, text="🔄 Restaurar Fontes Padrão", font=("Arial", 9), command=self.restaurar_fontes_padrao)
+        btn_restaurar.pack(side="left", padx=10)
 
     def construir_tab_agendamento(self):
         self.dias_map = {
@@ -163,11 +246,26 @@ class BoletimApp:
         messagebox.showinfo("Sucesso", "Lista de e-mails atualizada!")
 
     def salvar_fontes(self):
-        lista = self.text_domains.get("1.0", tk.END).strip().split('\n')
-        lista = [d.strip() for d in lista if d.strip()]
-        self.config["ignored_domains"] = lista
+        # Domínios Positivos
+        lista_pos = self.text_positive_domains.get("1.0", tk.END).strip().split('\n')
+        lista_pos = [d.strip().lower() for d in lista_pos if d.strip()]
+        self.config["positive_domains"] = lista_pos
+        
+        # Domínios Negativos
+        lista_neg = self.text_domains.get("1.0", tk.END).strip().split('\n')
+        lista_neg = [d.strip().lower() for d in lista_neg if d.strip()]
+        self.config["ignored_domains"] = lista_neg
+        
         salvar_config(self.config)
-        messagebox.showinfo("Sucesso", "Lista de domínios negativados atualizada!")
+        messagebox.showinfo("Sucesso", f"Configurações de fontes atualizadas!\n\n✅ {len(lista_pos)} domínios positivos monitorados.\n⛔ {len(lista_neg)} domínios negativados.")
+
+    def restaurar_fontes_padrao(self):
+        if messagebox.askyesno("Restaurar Padrões", "Deseja redefinir as listas de domínios positivos e negativos para os padrões recomendados?"):
+            self.text_positive_domains.delete("1.0", tk.END)
+            self.text_positive_domains.insert("1.0", "\n".join(DEFAULT_POSITIVE_DOMAINS))
+            self.text_domains.delete("1.0", tk.END)
+            self.text_domains.insert("1.0", "\n".join(DEFAULT_IGNORED_DOMAINS))
+            self.salvar_fontes()
 
     def salvar_wa_config(self):
         phone = self.entry_wa_phone.get().strip()

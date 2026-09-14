@@ -26,6 +26,7 @@ O projeto segue uma arquitetura modular em Python:
 
 ### 4.1 Coleta e Sumarização
 - Varredura de notícias globais, nacionais e jurídicas via Google News RSS.
+- **Gerenciamento de Fontes**: Painel interativo para inclusão/exclusão de **Domínios Positivos** (prioritários) e **Domínios Negativados** (bloqueados).
 - Fontes jurídicas especializadas: ANPD, OAB Nacional / CFOAB, Tribunais (STF, STJ, CNJ, TJSP, TST), ConJur, Migalhas, JOTA, Jusbrasil, ITS Rio, IDP e Law.com / Legaltech News.
 - Fontes acadêmicas e de pesquisa mundial: MIT / CSAIL, Carnegie Mellon (CMU), Harvard, Oxford & Cambridge, The Alan Turing Institute, Nature Machine Intelligence, IEEE e arXiv.
 - A IA constrói as narrativas e inclui links das referências, adaptando o formato ao padrão de leitura do WhatsApp.
