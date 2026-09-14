@@ -1,4 +1,5 @@
 import os
+import time
 from dotenv import load_dotenv
 import logging
 from google import genai
@@ -8,6 +9,14 @@ import requests
 
 load_dotenv()
 logger = logging.getLogger(__name__)
+
+DEFAULT_MODELS = [
+    "gemini-3.6-flash",
+    "gemini-3.8-flash",
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
+]
+
 
 def shorten_url(url):
     """
@@ -74,27 +83,46 @@ def summarize_news_for_whatsapp(articles: list[dict]) -> str:
         "10. Finalize com uma mensagem de encerramento inovadora, inteligente e criativa, convidando o grupo a dar opinião sobre alguma dessas polêmicas discutidas. PROIBIDO usar clichês ou bordões batidos como 'Ufa! Que semana...', 'Quanta coisa, não é mesmo?' ou similares. Varie sempre o fechamento para não ficar cansativo nos boletins semanais.\n\n"
         f"Aqui está o compilado bruto de dezenas de notícias coletadas (exterior, geral e área jurídica) para selecionar os pesos pesados e expandir:\n\n{news_text}"
     )
-    
-    logger.info("Enviando solicitação de sumarização para a Gemini API (gemini-2.5-flash)...")
-    
-    try:
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt_user,
-            config=types.GenerateContentConfig(
-                system_instruction=prompt_system,
-                temperature=0.7
-            )
-        )
-        
-        if response.candidates and response.candidates[0].finish_reason:
-            logger.info(f"Finish Reason retornado pelo Gemini: {response.candidates[0].finish_reason}")
-        
-        content = response.text
+    env_model = os.getenv("GEMINI_MODEL")
+    candidate_models = []
+    if env_model:
+        candidate_models.append(env_model)
+    for m in DEFAULT_MODELS:
+        if m not in candidate_models:
+            candidate_models.append(m)
+
+    last_error = None
+    for model_name in candidate_models:
+        logger.info(f"Enviando solicitação de sumarização para a Gemini API ({model_name})...")
+        for attempt in range(1, 3):
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt_user,
+                    config=types.GenerateContentConfig(
+                        system_instruction=prompt_system,
+                        temperature=0.7
+                    )
+                )
                 
-        logger.info("Resumo gerado com sucesso pelo Gemini.")
-        return content
-        
-    except Exception as e:
-        logger.error(f"Erro ao conversar com a API do Gemini: {str(e)}")
-        raise e
+                if response.candidates and response.candidates[0].finish_reason:
+                    logger.info(f"Finish Reason retornado pelo Gemini ({model_name}): {response.candidates[0].finish_reason}")
+                
+                content = response.text
+                if not content:
+                    raise ValueError(f"Resposta vazia retornada pelo modelo {model_name}.")
+                        
+                logger.info(f"Resumo gerado com sucesso pelo Gemini ({model_name}).")
+                return content
+            except Exception as e:
+                last_error = e
+                logger.warning(f"Tentativa {attempt}/2 falhou no modelo {model_name}: {e}")
+                if attempt < 2:
+                    time.sleep(2)
+                else:
+                    logger.warning(f"Esgotadas tentativas para {model_name}. Alternando para o próximo modelo...")
+                    time.sleep(1)
+
+    logger.error(f"Erro fatal: Todos os modelos do Gemini falharam na sumarização. Último erro: {last_error}")
+    raise last_error
+

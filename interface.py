@@ -215,13 +215,30 @@ class BoletimApp:
                 # Usar caminhos absolutos e garantir o cwd correto
                 python_exe = VENV_PYTHON if os.path.exists(VENV_PYTHON) else "python"
                 main_script = os.path.join(BASE_DIR, "main.py")
-                history_pattern = os.path.join(BASE_DIR, "history", f"boletim_ia_{self.get_today()}*.md")
+                history_pattern_br = os.path.join(BASE_DIR, "history", f"boletim_ia_{self.get_today_br()}*.md")
+                history_pattern_iso = os.path.join(BASE_DIR, "history", f"boletim_ia_{self.get_today()}*.md")
 
-                # Limpeza prévia (PowerShell de forma mais segura)
-                subprocess.run(["powershell", "-Command", f'Remove-Item -Path "{history_pattern}" -ErrorAction SilentlyContinue'], check=False)
+                # Limpeza prévia para permitir nova geração manual no mesmo dia
+                subprocess.run(["powershell", "-Command", f'Remove-Item -Path "{history_pattern_br}", "{history_pattern_iso}" -ErrorAction SilentlyContinue'], check=False)
                 
-                # Execucao do script principal
-                subprocess.run([python_exe, main_script], check=True, cwd=BASE_DIR)
+                # Execucao do script principal capturando saída
+                res = subprocess.run([python_exe, main_script], capture_output=True, text=True, cwd=BASE_DIR, encoding="utf-8", errors="replace")
+                
+                if res.returncode != 0:
+                    detalhe_erro = ""
+                    log_file = os.path.join(BASE_DIR, "boletim.log")
+                    if os.path.exists(log_file):
+                        try:
+                            with open(log_file, "r", encoding="utf-8", errors="replace") as lf:
+                                lines = [l.strip() for l in lf.readlines() if l.strip()]
+                                err_lines = [l for l in lines[-15:] if "ERROR" in l or "Traceback" in l or "Exception" in l or "Error" in l]
+                                if err_lines:
+                                    detalhe_erro = "\n".join(err_lines[-3:])
+                        except Exception:
+                            pass
+                    if not detalhe_erro:
+                        detalhe_erro = (res.stderr or res.stdout or f"Código de saída: {res.returncode}").strip()
+                    raise RuntimeError(detalhe_erro)
                 
                 messagebox.showinfo("Sucesso Total!", 
                     "O Boletim foi gerado e enviado com sucesso!\n\n"
@@ -254,6 +271,11 @@ class BoletimApp:
     def get_today(self):
         from datetime import datetime
         return datetime.now().strftime("%Y-%m-%d")
+
+    def get_today_br(self):
+        from datetime import datetime
+        return datetime.now().strftime("%d-%m-%Y")
+
 
     def atualizar_agendamento(self):
         dia_pt = self.combo_dia.get()

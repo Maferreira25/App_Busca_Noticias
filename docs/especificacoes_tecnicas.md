@@ -9,7 +9,7 @@ O projeto segue uma arquitetura modular em Python:
 - **`interface.py`**: Painel de controle gráfico (Tkinter) para configuração de e-mails, filtros, WhatsApp, agendamento e acionamento manual. Agora inicializa a infraestrutura Docker automaticamente em background.
 - **`main.py`**: Orquestrador principal que executa o fluxo de trabalho.
 - **`fetcher.py`**: Motor de busca (Google News RSS).
-- **`summarizer.py`**: Integração com a API do Google Gemini (2.5 Flash).
+- **`summarizer.py`**: Integração com a API do Google Gemini (gemini-3.6-flash com fallback resiliente).
 - **`storage.py`**: Módulo de persistência local na pasta `history/`.
 - **`emailer.py`**: Módulo de comunicação (SMTP Gmail).
 - **`whatsapp_sender.py`**: Controlador de integração que se comunica com a **Evolution API local (Docker)** para disparar as mensagens formatadas.
@@ -18,7 +18,7 @@ O projeto segue uma arquitetura modular em Python:
 ## 3. Tecnologias Utilizadas
 - **Linguagem**: Python 3.x
 - **Interface**: Tkinter (nativa)
-- **Inteligência Artificial**: Google Gemini API (gemini-2.5-flash)
+- **Inteligência Artificial**: Google Gemini API (gemini-3.6-flash com redundância multimodelo)
 - **Infraestrutura WhatsApp**: Docker, Docker Compose e Evolution API (v1.8.2)
 - **Automação de Agendamento**: Windows Task Scheduler
 

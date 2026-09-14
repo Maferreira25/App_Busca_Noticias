@@ -10,6 +10,13 @@ from summarizer import summarize_news_for_whatsapp
 from storage import save_summary_locally
 from whatsapp_sender import send_whatsapp_message
 
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 load_dotenv()
 logging.basicConfig(
     level=logging.INFO,
