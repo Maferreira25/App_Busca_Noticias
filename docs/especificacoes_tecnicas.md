@@ -25,7 +25,8 @@ O projeto segue uma arquitetura modular em Python:
 ## 4. Funcionalidades Detalhadas
 
 ### 4.1 Coleta e Sumarização
-- Varredura de notícias globais, nacionais e jurídicas via RSS.
+- Varredura de notícias globais, nacionais e jurídicas via Google News RSS.
+- Fontes jurídicas especializadas: ANPD, OAB Nacional / CFOAB, Tribunais (STF, STJ, CNJ, TJSP, TST), ConJur, Migalhas, JOTA, Jusbrasil, ITS Rio, IDP e Law.com / Legaltech News.
 - A IA constrói as narrativas e inclui links das referências, adaptando o formato ao padrão de leitura do WhatsApp.
 
 ### 4.2 Envio e Infraestrutura (WhatsApp)
