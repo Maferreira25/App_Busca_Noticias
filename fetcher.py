@@ -57,8 +57,8 @@ def fetch_ai_news() -> list[dict]:
     juridico = fetch_rss('("inteligência artificial" OR "IA generativa") AND (direito OR jurídico OR advocacia OR tribunais OR ConJur OR STF OR STJ OR CNJ OR Migalhas OR JOTA OR Jusbrasil OR LexisNexis OR "Direito Digital" OR LegalTech OR LawTech OR "DSA ACADEMY" OR "FGV Direito SP" OR "Revista do Direito" OR "Atitus" OR "Virtualjus" OR "PUC Minas" OR "Data Privacy Brasil" OR "ANPD" OR "OAB Nacional" OR "CFOAB" OR "TJSP" OR "TST" OR "ITS Rio" OR "IDP" OR "Law.com" OR "Legaltech News" OR "Reuters Legal")', "pt-BR", "BR")
     articles.extend(juridico[:15])
     
-    # 4. Fronteira da IA e portais de tecnologia de referência (15 notícias)
-    fronteira = fetch_rss('"AI" OR "artificial intelligence" AND (site:openai.com OR site:deepmind.google OR site:anthropic.com OR site:huggingface.co OR site:ai.meta.com OR site:technologyreview.com OR site:stanford.edu OR site:techcrunch.com OR site:wired.com OR site:theverge.com)', "en-US", "US")
+    # 4. Fronteira da IA, centros acadêmicos mundiais e institutos de pesquisa (15 notícias)
+    fronteira = fetch_rss('("AI" OR "artificial intelligence" OR "generative AI") AND (site:openai.com OR site:deepmind.google OR site:anthropic.com OR site:huggingface.co OR site:technologyreview.com OR "MIT" OR "CSAIL" OR "Carnegie Mellon" OR "CMU" OR "Harvard" OR "Oxford University" OR "University of Cambridge" OR "Alan Turing Institute" OR "Nature Machine Intelligence" OR "IEEE" OR site:arxiv.org)', "en-US", "US")
     articles.extend(fronteira[:15])
     
     logger.info(f"Total de notícias mescladas: {len(articles)}")
