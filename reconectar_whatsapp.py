@@ -4,9 +4,13 @@ import requests
 import base64
 import webbrowser
 
-API_URL = "http://localhost:8080"
-API_KEY = "42247710-6003-490b-936b-67a6d8d65451"
-INSTANCE_NAME = "BoletimIA"
+from dotenv import load_dotenv
+
+load_dotenv()
+
+API_URL = os.getenv("EVOLUTION_API_URL", "http://localhost:8080")
+API_KEY = os.getenv("EVOLUTION_API_KEY", "")
+INSTANCE_NAME = os.getenv("EVOLUTION_INSTANCE", "BoletimIA")
 HEADERS = {"apikey": API_KEY, "Content-Type": "application/json"}
 
 print("=======================================")

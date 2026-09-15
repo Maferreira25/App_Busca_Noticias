@@ -3,10 +3,14 @@ import time
 import os
 import base64
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 # Configurações da Evolution API v1.8.2
-BASE_URL = "http://localhost:8080"
-GLOBAL_API_KEY = "42247710-6003-490b-936b-67a6d8d65451"
-INSTANCE_NAME = "BoletimIA"
+BASE_URL = os.getenv("EVOLUTION_API_URL", "http://localhost:8080")
+GLOBAL_API_KEY = os.getenv("EVOLUTION_API_KEY", "")
+INSTANCE_NAME = os.getenv("EVOLUTION_INSTANCE", "BoletimIA")
 
 def setup():
     headers = {"apikey": GLOBAL_API_KEY, "Content-Type": "application/json"}

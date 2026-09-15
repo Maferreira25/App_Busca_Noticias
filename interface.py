@@ -6,7 +6,11 @@ import sys
 import subprocess
 import threading
 import logging
-from dotenv import load_dotenv
+import re
+import dotenv
+from dotenv import load_dotenv, set_key
+
+from constants import DEFAULT_POSITIVE_DOMAINS, DEFAULT_IGNORED_DOMAINS, SCHEDULE_TASK_NAME
 
 load_dotenv()
 
@@ -18,57 +22,6 @@ CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 VENV_PYTHON = os.path.join(BASE_DIR, ".venv", "Scripts", "python.exe")
 SCHEDULE_SCRIPT = os.path.join(BASE_DIR, "setup_scheduler.ps1")
 
-DEFAULT_POSITIVE_DOMAINS = [
-    "conjur.com.br",
-    "migalhas.com.br",
-    "jota.info",
-    "jusbrasil.com.br",
-    "gov.br/anpd",
-    "oab.org.br",
-    "tjsp.jus.br",
-    "tst.jus.br",
-    "stf.jus.br",
-    "stj.jus.br",
-    "cnj.jus.br",
-    "itsrio.org.br",
-    "idp.edu.br",
-    "law.com",
-    "reuters.com",
-    "csail.mit.edu",
-    "cmu.edu",
-    "harvard.edu",
-    "ox.ac.uk",
-    "cam.ac.uk",
-    "turing.ac.uk",
-    "nature.com",
-    "ieee.org",
-    "arxiv.org",
-    "openai.com",
-    "deepmind.google",
-    "anthropic.com",
-    "huggingface.co",
-    "technologyreview.com",
-    "techcrunch.com",
-    "wired.com",
-    "theverge.com",
-    "arstechnica.com"
-]
-
-DEFAULT_IGNORED_DOMAINS = [
-    "panrotas.com.br",
-    "uol.com.br",
-    "economia.uol.com.br",
-    "tilt.uol.com.br",
-    "viagenspromo.com",
-    "passagens",
-    "melhoresdestinos.com.br",
-    "voegol.com.br",
-    "latamairlines.com",
-    "voeazul.com.br",
-    "aeroin.net",
-    "mercadoeeventos.com.br",
-    "decolar.com"
-]
 
 def carregar_config():
     if not os.path.exists(CONFIG_FILE):
@@ -269,32 +222,14 @@ class BoletimApp:
 
     def salvar_wa_config(self):
         phone = self.entry_wa_phone.get().strip()
-        
-        # Atualizar o .env
         env_path = os.path.join(BASE_DIR, ".env")
-        lines = []
-        if os.path.exists(env_path):
-            with open(env_path, "r", encoding="utf-8") as f:
-                lines = f.readlines()
-        
-        new_lines = []
-        found_phone = False
-        for line in lines:
-            if line.startswith("WHATSAPP_PHONE="):
-                new_lines.append(f"WHATSAPP_PHONE={phone}\n")
-                found_phone = True
-            else:
-                new_lines.append(line)
-        
-        if not found_phone: new_lines.append(f"WHATSAPP_PHONE={phone}\n")
-        
-        with open(env_path, "w", encoding="utf-8") as f:
-            f.writelines(new_lines)
-            
-        # Atualizar variavel de ambiente na sessao atual
-        os.environ["WHATSAPP_PHONE"] = phone
-        
-        messagebox.showinfo("Sucesso", "Numero de WhatsApp salvo com sucesso!")
+        try:
+            set_key(env_path, "WHATSAPP_PHONE", phone)
+            os.environ["WHATSAPP_PHONE"] = phone
+            messagebox.showinfo("Sucesso", "Número de WhatsApp salvo com sucesso no .env!")
+        except Exception as e:
+            logger.error(f"Erro ao salvar WHATSAPP_PHONE no .env: {e}")
+            messagebox.showerror("Erro", f"Não foi possível salvar o número no .env: {e}")
 
     def reconectar_whatsapp(self):
         script_path = os.path.join(BASE_DIR, "reconectar_whatsapp.py")
@@ -379,12 +314,11 @@ class BoletimApp:
 
     def iniciar_docker_background(self):
         try:
-            from main import ensure_environment
+            from docker_manager import ensure_environment
             logger.info("Iniciando rotina de garantia do Docker via Interface...")
             
             self.root.after(0, lambda: self.lbl_docker_status.config(text="Serviços (Docker/API): Iniciando (aguarde)...", fg="#f39c12"))
             
-            # A função ensure_environment verifica se o Docker está rodando, inicia o Docker Desktop se não estiver, e sobe os containers.
             success = ensure_environment()
             
             if success:
@@ -408,6 +342,14 @@ class BoletimApp:
         dia_pt = self.combo_dia.get()
         hora = self.entry_hora.get().strip()
         
+        # Validação estrita de formato de hora para prevenir injeção no comando PowerShell
+        if not re.match(r"^([01]\d|2[0-3]):[0-5]\d$", hora):
+            messagebox.showerror(
+                "Horário Inválido",
+                "Por favor, insira o horário no formato válido HH:MM (ex: 08:00, 22:30)."
+            )
+            return
+
         dia_en = self.dias_reverse.get(dia_pt, "MON")
         
         self.config["schedule_day"] = dia_en
@@ -417,11 +359,11 @@ class BoletimApp:
         script_path = os.path.join(BASE_DIR, 'main.py')
         python_exe = VENV_PYTHON if os.path.exists(VENV_PYTHON) else "python"
         
-        # Usando PowerShell + CMD para garantir redirecionamento de logs e permissões
+        # Usando PowerShell + CMD com constante compartilhada SCHEDULE_TASK_NAME
         ps_cmd = (
             f"$action = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument '/c \"\"{python_exe}\" \"{script_path}\" > \"{os.path.join(BASE_DIR, 'debug_agendador.log')}\" 2>&1\"' -WorkingDirectory '{BASE_DIR}'; "
             f"$trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek {dia_en} -At {hora}; "
-            f"Register-ScheduledTask -Action $action -Trigger $trigger -TaskName 'BoletimIANews' -Description 'Envio semanal de noticias de IA' -Force"
+            f"Register-ScheduledTask -Action $action -Trigger $trigger -TaskName '{SCHEDULE_TASK_NAME}' -Description 'Envio semanal de noticias de IA' -Force"
         )
         
         try:

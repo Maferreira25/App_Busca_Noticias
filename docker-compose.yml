@@ -10,7 +10,7 @@ services:
       - SERVER_URL=http://localhost:8080
       - DOCKER_RESTART_POLICY=always
       - AUTHENTICATION_TYPE=apikey
-      - AUTHENTICATION_API_KEY=42247710-6003-490b-936b-67a6d8d65451
+      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY}
       - DATABASE_ENABLED=false # Na v1.8 podemos rodar sem DB externo para testes rápidos
       - LOG_LEVEL=ERROR,WARN,DEBUG,INFO
       - LOG_COLOR=true

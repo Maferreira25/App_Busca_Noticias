@@ -1,9 +1,16 @@
 import requests
 import base64
 import os
+from dotenv import load_dotenv
 
-url = "http://localhost:8080/instance/connect/BoletimIA"
-headers = {"apikey": "42247710-6003-490b-936b-67a6d8d65451"}
+load_dotenv()
+
+api_url = os.getenv("EVOLUTION_API_URL", "http://localhost:8080")
+instance = os.getenv("EVOLUTION_INSTANCE", "BoletimIA")
+api_key = os.getenv("EVOLUTION_API_KEY", "")
+
+url = f"{api_url}/instance/connect/{instance}"
+headers = {"apikey": api_key}
 
 try:
     response = requests.get(url, headers=headers)

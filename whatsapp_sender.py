@@ -9,6 +9,35 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+def split_message_into_chunks(text: str, max_chars: int = 15000) -> list[str]:
+    """
+    Divide a mensagem respeitando quebras de parágrafos para não cortar
+    links, tags markdown ou frases no meio.
+    """
+    if len(text) <= max_chars:
+        return [text]
+
+    paragraphs = text.split("\n\n")
+    chunks = []
+    current_chunk = []
+    current_length = 0
+
+    for para in paragraphs:
+        para_len = len(para) + 2  # compensa o \n\n
+        if current_length + para_len > max_chars and current_chunk:
+            chunks.append("\n\n".join(current_chunk))
+            current_chunk = [para]
+            current_length = len(para)
+        else:
+            current_chunk.append(para)
+            current_length += para_len
+
+    if current_chunk:
+        chunks.append("\n\n".join(current_chunk))
+
+    return chunks
+
+
 def send_whatsapp_message(content: str):
     """
     Envia a mensagem via Evolution API local (v1.8.2)
@@ -34,10 +63,8 @@ def send_whatsapp_message(content: str):
         "Content-Type": "application/json"
     }
 
-    # A Evolution API aceita mensagens longas. Vamos usar um limite alto (15.000)
-    # para que o boletim quase sempre seja enviado em uma única parte.
-    MAX_CHARS = 15000
-    parts = [full_message[i:i+MAX_CHARS] for i in range(0, len(full_message), MAX_CHARS)]
+    # Divisão contextual e inteligente de mensagens
+    parts = split_message_into_chunks(full_message, max_chars=15000)
     
     success_count = 0
     for index, part in enumerate(parts):

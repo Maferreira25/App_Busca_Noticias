@@ -5,24 +5,17 @@ import logging
 logger = logging.getLogger(__name__)
 
 import json
+from constants import DEFAULT_POSITIVE_DOMAINS, DEFAULT_IGNORED_DOMAINS
 
-DEFAULT_POSITIVE_DOMAINS = [
-    "conjur.com.br", "migalhas.com.br", "jota.info", "jusbrasil.com.br",
-    "gov.br/anpd", "oab.org.br", "tjsp.jus.br", "tst.jus.br", "stf.jus.br",
-    "stj.jus.br", "cnj.jus.br", "itsrio.org.br", "idp.edu.br", "law.com", "reuters.com",
-    "csail.mit.edu", "cmu.edu", "harvard.edu", "ox.ac.uk", "cam.ac.uk", "turing.ac.uk",
-    "nature.com", "ieee.org", "arxiv.org", "openai.com", "deepmind.google",
-    "anthropic.com", "huggingface.co", "technologyreview.com", "techcrunch.com",
-    "wired.com", "theverge.com", "arstechnica.com"
-]
 
 def get_ignored_domains() -> list[str]:
     try:
         with open("config.json", "r", encoding="utf-8") as f:
             config = json.load(f)
-            return config.get("ignored_domains", [])
+            return config.get("ignored_domains", DEFAULT_IGNORED_DOMAINS)
     except Exception:
-        return []
+        return DEFAULT_IGNORED_DOMAINS
+
 
 def get_positive_domains() -> list[str]:
     try:

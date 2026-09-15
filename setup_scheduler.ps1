@@ -16,11 +16,10 @@ $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatt
 # Principal: Rodar com privilégios máximos para garantir acesso ao Docker
 $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Highest
 
-# Registro da tarefa
-Register-ScheduledTask -TaskName "Boletim_IAGenerativa_Semanal" -Action $action -Trigger $triggers -Settings $settings -Principal $principal -Description "Automação Semanal de Notícias de IA com ativação automática de Docker/Evolution API" -Force
+Register-ScheduledTask -TaskName "BoletimIANews" -Action $action -Trigger $triggers -Settings $settings -Principal $principal -Description "Automação Semanal de Notícias de IA com ativação automática de Docker/Evolution API" -Force
 
 Write-Host "---"
-Write-Host "Tarefa 'Boletim_IAGenerativa_Semanal' atualizada com SUCESSO!"
+Write-Host "Tarefa 'BoletimIANews' atualizada com SUCESSO!"
 Write-Host "Novas configurações aplicadas:"
 Write-Host "1. O PC será acordado para rodar a tarefa (WakeToRun)."
 Write-Host "2. Rodará com Privilégios Máximos (para gerenciar o Docker)."
