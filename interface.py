@@ -83,25 +83,67 @@ class BoletimApp:
         # Tabs
         self.tab_geral = ttk.Frame(self.notebook)
         self.tab_agentes = ttk.Frame(self.notebook)
-        self.tab_fontes = ttk.Frame(self.notebook)
+        self.tab_contatos = ttk.Frame(self.notebook)
         self.tab_agendamento = ttk.Frame(self.notebook)
         
-        self.notebook.add(self.tab_geral, text="Geral & E-mails")
+        self.notebook.add(self.tab_geral, text="Geral & Fontes")
         self.notebook.add(self.tab_agentes, text="🤖 Feed de Agentes de IA")
-        self.notebook.add(self.tab_fontes, text="Fontes & Filtros")
+        self.notebook.add(self.tab_contatos, text="E-mails & WhatsApp")
         self.notebook.add(self.tab_agendamento, text="Agendamentos")
         
         self.construir_tab_geral()
         self.construir_tab_agentes()
-        self.construir_tab_fontes()
+        self.construir_tab_contatos()
         self.construir_tab_agendamento()
 
     def construir_tab_geral(self):
         btn_frame = tk.Frame(self.tab_geral)
-        btn_frame.pack(pady=20)
+        btn_frame.pack(pady=(12, 6))
         
-        self.btn_gerar = tk.Button(btn_frame, text="⚡ Gerar & Enviar Boletim Geral Agora", font=("Arial", 12, "bold"), bg="#4CAF50", fg="white", command=lambda: self.gerar_agora("geral"))
+        self.btn_gerar = tk.Button(
+            btn_frame,
+            text="⚡ Gerar & Enviar Boletim Geral Agora",
+            font=("Arial", 12, "bold"),
+            bg="#4CAF50",
+            fg="white",
+            activebackground="#3e8e41",
+            activeforeground="white",
+            disabledforeground="white",
+            command=lambda: self.gerar_agora("geral")
+        )
         self.btn_gerar.pack()
+
+        # 1. Domínios Positivos
+        lbl_pos = tk.Label(self.tab_geral, text="✅ Domínios Positivos (Fontes monitoradas nas buscas - 1 por linha):", font=("Arial", 10, "bold"), fg="#27ae60")
+        lbl_pos.pack(pady=(8, 2), anchor="w", padx=20)
+        
+        lbl_pos_sub = tk.Label(self.tab_geral, text="Todas as fontes de alto relevo (Jurídicas, Acadêmicas e Tecnologia). Edite, adicione ou remova conforme desejar:", font=("Arial", 8), fg="#7f8c8d")
+        lbl_pos_sub.pack(anchor="w", padx=20, pady=(0, 4))
+        
+        self.text_positive_domains = scrolledtext.ScrolledText(self.tab_geral, width=70, height=8)
+        self.text_positive_domains.pack(padx=20, fill="x")
+        self.text_positive_domains.insert("1.0", "\n".join(self.config.get("positive_domains", DEFAULT_POSITIVE_DOMAINS)))
+        
+        # 2. Domínios Negativados
+        lbl_neg = tk.Label(self.tab_geral, text="⛔ Domínios Negativados (Excluir da busca - 1 por linha):", font=("Arial", 10, "bold"), fg="#c0392b")
+        lbl_neg.pack(pady=(10, 2), anchor="w", padx=20)
+        
+        lbl_neg_sub = tk.Label(self.tab_geral, text="Sites que devem ser excluídos mesmo que mencionem termos de IA (ex: passagens aéreas, fofocas):", font=("Arial", 8), fg="#7f8c8d")
+        lbl_neg_sub.pack(anchor="w", padx=20, pady=(0, 4))
+        
+        self.text_domains = scrolledtext.ScrolledText(self.tab_geral, width=70, height=6)
+        self.text_domains.pack(padx=20, fill="x")
+        self.text_domains.insert("1.0", "\n".join(self.config.get("ignored_domains", DEFAULT_IGNORED_DOMAINS)))
+        
+        # Botões de ação
+        frame_btn_fontes = tk.Frame(self.tab_geral)
+        frame_btn_fontes.pack(pady=12)
+        
+        btn_salvar_fontes = tk.Button(frame_btn_fontes, text="💾 Salvar Configurações de Fontes", font=("Arial", 10, "bold"), bg="#2980b9", fg="white", command=self.salvar_fontes)
+        btn_salvar_fontes.pack(side="left", padx=10)
+        
+        btn_restaurar = tk.Button(frame_btn_fontes, text="🔄 Restaurar Fontes Padrão", font=("Arial", 9), command=self.restaurar_fontes_padrao)
+        btn_restaurar.pack(side="left", padx=10)
 
     def construir_tab_agentes(self):
         btn_frame = tk.Frame(self.tab_agentes)
@@ -111,8 +153,11 @@ class BoletimApp:
             btn_frame,
             text="🤖 Gerar & Enviar Boletim de Agentes Agora",
             font=("Arial", 12, "bold"),
-            bg="#8e44ad",
+            bg="#1a365d",
             fg="white",
+            activebackground="#0f2544",
+            activeforeground="white",
+            disabledforeground="white",
             command=lambda: self.gerar_agora("agentes")
         )
         self.btn_gerar_agentes.pack()
@@ -130,7 +175,7 @@ class BoletimApp:
             self.tab_agentes,
             text="🌐 Fontes de Referência em Agentes & Pesquisa (1 por linha):",
             font=("Arial", 10, "bold"),
-            fg="#8e44ad"
+            fg="#1a365d"
         )
         lbl_fontes_ag.pack(pady=(10, 3), anchor="w", padx=20)
         
@@ -166,67 +211,42 @@ class BoletimApp:
             command=self.restaurar_fontes_agentes_padrao
         )
         btn_restaurar_ag.pack(side="left", padx=10)
+
+    def construir_tab_contatos(self):
+        # 1. Destinatários de E-mails
+        lbl_emails = tk.Label(self.tab_contatos, text="📧 Destinatários de E-mails (1 por linha):", font=("Arial", 10, "bold"), fg="#2c3e50")
+        lbl_emails.pack(pady=(15, 3), anchor="w", padx=20)
         
-        lbl_emails = tk.Label(self.tab_geral, text="Destinatários de E-mails (1 por linha):")
-        lbl_emails.pack(pady=(20, 5), anchor="w", padx=20)
+        lbl_emails_sub = tk.Label(self.tab_contatos, text="Lista de e-mails que receberão as edições automáticas dos boletins:", font=("Arial", 8), fg="#7f8c8d")
+        lbl_emails_sub.pack(anchor="w", padx=20, pady=(0, 5))
         
-        self.text_emails = scrolledtext.ScrolledText(self.tab_geral, width=60, height=10)
-        self.text_emails.pack(padx=20)
+        self.text_emails = scrolledtext.ScrolledText(self.tab_contatos, width=70, height=9)
+        self.text_emails.pack(padx=20, fill="x")
         self.text_emails.insert("1.0", "\n".join(self.config.get("emails", [])))
         
-        btn_salvar = tk.Button(self.tab_geral, text="Salvar Lista de E-mails", command=self.salvar_emails)
-        btn_salvar.pack(pady=10)
+        btn_salvar = tk.Button(self.tab_contatos, text="💾 Salvar Lista de E-mails", font=("Arial", 10, "bold"), bg="#2980b9", fg="white", command=self.salvar_emails)
+        btn_salvar.pack(pady=(8, 20))
 
-        # Configuracoes de WhatsApp
-        lbl_wa = tk.Label(self.tab_geral, text="Configuracoes WhatsApp (Evolution API):", font=("Arial", 10, "bold"))
-        lbl_wa.pack(pady=(20, 5), anchor="w", padx=20)
+        # 2. Configurações de WhatsApp
+        lbl_wa = tk.Label(self.tab_contatos, text="📲 Configurações WhatsApp (Evolution API):", font=("Arial", 10, "bold"), fg="#2c3e50")
+        lbl_wa.pack(pady=(5, 5), anchor="w", padx=20)
 
-        frame_wa = tk.Frame(self.tab_geral)
+        frame_wa = tk.Frame(self.tab_contatos)
         frame_wa.pack(padx=20, fill="x")
 
-        tk.Label(frame_wa, text="Numero (Ex: 55629...):").grid(row=0, column=0, sticky="w")
-        self.entry_wa_phone = tk.Entry(frame_wa, width=30)
+        tk.Label(frame_wa, text="Número com DDI e DDD (Ex: 55629...):", font=("Arial", 9)).grid(row=0, column=0, sticky="w", pady=5)
+        self.entry_wa_phone = tk.Entry(frame_wa, width=32)
         self.entry_wa_phone.insert(0, os.getenv("WHATSAPP_PHONE", ""))
-        self.entry_wa_phone.grid(row=0, column=1, padx=5, pady=2)
+        self.entry_wa_phone.grid(row=0, column=1, padx=8, pady=5)
 
-        btn_salvar_wa = tk.Button(self.tab_geral, text="Salvar Numero de WhatsApp", command=self.salvar_wa_config)
-        btn_salvar_wa.pack(pady=(10, 5))
+        frame_btn_wa = tk.Frame(self.tab_contatos)
+        frame_btn_wa.pack(pady=10)
 
-        btn_reconectar_wa = tk.Button(self.tab_geral, text="📲 Reconectar WhatsApp (Gerar QR Code)", bg="#3498db", fg="white", font=("Arial", 10, "bold"), command=self.reconectar_whatsapp)
-        btn_reconectar_wa.pack(pady=5)
+        btn_salvar_wa = tk.Button(frame_btn_wa, text="💾 Salvar Número de WhatsApp", font=("Arial", 9, "bold"), command=self.salvar_wa_config)
+        btn_salvar_wa.pack(side="left", padx=8)
 
-    def construir_tab_fontes(self):
-        # 1. Domínios Positivos
-        lbl_pos = tk.Label(self.tab_fontes, text="✅ Domínios Positivos (Fontes monitoradas nas buscas - 1 por linha):", font=("Arial", 10, "bold"), fg="#27ae60")
-        lbl_pos.pack(pady=(15, 3), anchor="w", padx=20)
-        
-        lbl_pos_sub = tk.Label(self.tab_fontes, text="Todas as fontes de alto relevo (Jurídicas, Acadêmicas e Tecnologia). Edite, adicione ou remova conforme desejar:", font=("Arial", 8), fg="#7f8c8d")
-        lbl_pos_sub.pack(anchor="w", padx=20, pady=(0, 5))
-        
-        self.text_positive_domains = scrolledtext.ScrolledText(self.tab_fontes, width=70, height=10)
-        self.text_positive_domains.pack(padx=20, fill="x")
-        self.text_positive_domains.insert("1.0", "\n".join(self.config.get("positive_domains", DEFAULT_POSITIVE_DOMAINS)))
-        
-        # 2. Domínios Negativados
-        lbl_neg = tk.Label(self.tab_fontes, text="⛔ Domínios Negativados (Excluir da busca - 1 por linha):", font=("Arial", 10, "bold"), fg="#c0392b")
-        lbl_neg.pack(pady=(15, 3), anchor="w", padx=20)
-        
-        lbl_neg_sub = tk.Label(self.tab_fontes, text="Sites que devem ser excluídos mesmo que mencionem termos de IA (ex: passagens aéreas, fofocas):", font=("Arial", 8), fg="#7f8c8d")
-        lbl_neg_sub.pack(anchor="w", padx=20, pady=(0, 5))
-        
-        self.text_domains = scrolledtext.ScrolledText(self.tab_fontes, width=70, height=7)
-        self.text_domains.pack(padx=20, fill="x")
-        self.text_domains.insert("1.0", "\n".join(self.config.get("ignored_domains", DEFAULT_IGNORED_DOMAINS)))
-        
-        # Botões de ação
-        frame_btn_fontes = tk.Frame(self.tab_fontes)
-        frame_btn_fontes.pack(pady=15)
-        
-        btn_salvar_fontes = tk.Button(frame_btn_fontes, text="💾 Salvar Configurações de Fontes", font=("Arial", 10, "bold"), bg="#2980b9", fg="white", command=self.salvar_fontes)
-        btn_salvar_fontes.pack(side="left", padx=10)
-        
-        btn_restaurar = tk.Button(frame_btn_fontes, text="🔄 Restaurar Fontes Padrão", font=("Arial", 9), command=self.restaurar_fontes_padrao)
-        btn_restaurar.pack(side="left", padx=10)
+        btn_reconectar_wa = tk.Button(frame_btn_wa, text="📲 Reconectar WhatsApp (Gerar QR Code)", bg="#3498db", fg="white", font=("Arial", 9, "bold"), command=self.reconectar_whatsapp)
+        btn_reconectar_wa.pack(side="left", padx=8)
 
     def salvar_fontes_agentes(self):
         lista = self.text_agent_domains.get("1.0", tk.END).strip().split('\n')
@@ -284,7 +304,7 @@ class BoletimApp:
         hora_config_a = self.config.get("agent_schedule_time", "08:00")
         dia_pt_a = self.dias_map.get(dia_config_a, "Segunda-feira")
         
-        self.lbl_status_agentes = tk.Label(frame_agentes, text=f"📅 Programação Agentes: Toda {dia_pt_a} às {hora_config_a}", font=("Arial", 10, "bold"), fg="#8e44ad")
+        self.lbl_status_agentes = tk.Label(frame_agentes, text=f"📅 Programação Agentes: Toda {dia_pt_a} às {hora_config_a}", font=("Arial", 10, "bold"), fg="#1a365d")
         self.lbl_status_agentes.grid(row=0, columnspan=2, pady=(0, 10), sticky="w")
         
         tk.Label(frame_agentes, text="Dia da Semana:").grid(row=1, column=0, padx=5, pady=4, sticky="e")
@@ -298,7 +318,17 @@ class BoletimApp:
         self.entry_hora_agentes.grid(row=2, column=1, padx=5, pady=4, sticky="w")
         self.entry_hora_agentes.bind("<KeyRelease>", lambda e: self.formatar_hora_campo(self.entry_hora_agentes, e))
         
-        btn_agendar_agentes = tk.Button(frame_agentes, text="💾 Atualizar Tarefa de Agentes no Windows", font=("Arial", 9, "bold"), bg="#8e44ad", fg="white", command=lambda: self.atualizar_agendamento("agentes"))
+        btn_agendar_agentes = tk.Button(
+            frame_agentes,
+            text="💾 Atualizar Tarefa de Agentes no Windows",
+            font=("Arial", 9, "bold"),
+            bg="#1a365d",
+            fg="white",
+            activebackground="#0f2544",
+            activeforeground="white",
+            disabledforeground="white",
+            command=lambda: self.atualizar_agendamento("agentes")
+        )
         btn_agendar_agentes.grid(row=3, columnspan=2, pady=10)
 
         lbl_info = tk.Label(container, text="* O agendamento gerencia as tarefas independentes 'BoletimIANews' e 'BoletimIAAgentes' no Windows.", fg="gray", font=("Arial", 8))
@@ -432,9 +462,9 @@ class BoletimApp:
             except Exception as e:
                 self.root.after(0, lambda msg=str(e): messagebox.showerror("Erro", f"Aconteceu um erro durante a geração:\n{msg}"))
             finally:
-                self.root.after(0, lambda: btn.config(state="normal", text=btn_label))
+                self.root.after(0, lambda: btn.config(state="normal", text=btn_label, fg="white"))
         
-        btn.config(state="disabled", text="⏳ Gerando Boletim (aguarde cerca de 1 min)...")
+        btn.config(state="disabled", text="⏳ Gerando Boletim (aguarde cerca de 1 min)...", disabledforeground="white")
         threading.Thread(target=tarefa, daemon=True).start()
 
     def iniciar_docker_background(self):
