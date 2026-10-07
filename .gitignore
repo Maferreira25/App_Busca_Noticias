@@ -7,3 +7,7 @@ config.json
 
 qrcode.html
 qrcode.png
+
+.agents/
+.pytest_cache/
+
