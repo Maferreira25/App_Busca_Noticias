@@ -1,11 +1,11 @@
 import feedparser
 import urllib.parse
 import logging
+import json
+import requests
+from constants import DEFAULT_POSITIVE_DOMAINS, DEFAULT_IGNORED_DOMAINS
 
 logger = logging.getLogger(__name__)
-
-import json
-from constants import DEFAULT_POSITIVE_DOMAINS, DEFAULT_IGNORED_DOMAINS
 
 
 def get_ignored_domains() -> list[str]:
@@ -47,11 +47,75 @@ def fetch_rss(query: str, lang: str = "pt-BR", country: str = "BR") -> list[dict
             "summary": entry.summary if hasattr(entry, 'summary') else ""
         })
     return articles
+ 
+def fetch_hf_trending_papers(limit: int = 5) -> list[dict]:
+    """
+    Busca os papers mais votados/em alta na API oficial do Hugging Face (Daily Papers).
+    Possui tratamento defensivo para respostas anômalas, dicionários nulos e tipos inesperados.
+    """
+    if limit <= 0:
+        return []
+
+    url = "https://huggingface.co/api/daily_papers"
+    logger.info("Buscando trending papers na API oficial do Hugging Face...")
+    papers = []
+    try:
+        response = requests.get(
+            url,
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
+            timeout=10
+        )
+        if response.status_code == 200:
+            data = response.json()
+            if not isinstance(data, list):
+                logger.warning(f"Payload inesperado da API Hugging Face (esperado lista, recebido {type(data)}).")
+                return []
+
+            def get_upvotes(item):
+                if not isinstance(item, dict):
+                    return 0
+                p_obj = item.get("paper") or {}
+                if not isinstance(p_obj, dict):
+                    return 0
+                return p_obj.get("upvotes") or 0
+
+            sorted_data = sorted(data, key=get_upvotes, reverse=True)
+            for item in sorted_data:
+                if not isinstance(item, dict):
+                    continue
+                p = item.get("paper") or {}
+                if not isinstance(p, dict):
+                    p = {}
+
+                paper_id = p.get("id") or item.get("id") or ""
+                title = p.get("title") or item.get("title") or "Paper sem título"
+                summary = p.get("summary") or item.get("summary") or ""
+                published = item.get("publishedAt") or p.get("publishedAt") or "Data recente"
+                upvotes = p.get("upvotes") or 0
+                link = f"https://huggingface.co/papers/{paper_id}" if paper_id else "https://huggingface.co/papers"
+
+                papers.append({
+                    "title": f"[Paper HF] {title} ({upvotes} votos)",
+                    "link": link,
+                    "published": str(published),
+                    "summary": str(summary)
+                })
+                if len(papers) >= limit:
+                    break
+
+            logger.info(f"Coletados {len(papers)} trending papers do Hugging Face com sucesso.")
+        else:
+            logger.warning(f"Hugging Face API retornou status code {response.status_code}")
+    except Exception as e:
+        logger.warning(f"Não foi possível buscar papers do Hugging Face via API: {e}")
+
+    return papers
 
 def fetch_ai_news() -> list[dict]:
     """
     Busca notícias sobre IA dos últimos 7 dias via Google News RSS utilizando multicritérios:
-    Geral PT-BR, Exterior EN-US, Jurídico focado e Fronteira Acadêmica/Domínios Positivos.
+    Geral PT-BR, Exterior EN-US, Jurídico focado, Fronteira Acadêmica/Domínios Positivos
+    e Trending Papers do Hugging Face.
     """
     articles = []
     pos_domains = get_positive_domains()
@@ -70,13 +134,21 @@ def fetch_ai_news() -> list[dict]:
     
     # 4. Fronteira da IA, centros acadêmicos mundiais e institutos de pesquisa (15 notícias)
     # Seleciona domínios configurados pelo usuário para montar a cláusula de busca
-    site_filters = [f"site:{d}" for d in pos_domains if any(k in d for k in ["openai", "deepmind", "anthropic", "huggingface", "mit.edu", "cmu.edu", "harvard.edu", "ox.ac.uk", "nature.com", "arxiv.org", "technologyreview", "techcrunch", "wired", "theverge"])]
+    site_filters = [f"site:{d}" for d in pos_domains if any(k in d for k in ["openai", "deepmind", "anthropic", "huggingface", "mit.edu", "cmu.edu", "harvard.edu", "ox.ac.uk", "nature.com", "arxiv.org", "technologyreview", "techcrunch", "wired", "theverge", "dair.ai"])]
     if not site_filters:
         site_filters = [f"site:{d}" for d in pos_domains[:8]]
     sites_str = " OR ".join(site_filters[:10]) if site_filters else "site:openai.com OR site:deepmind.google"
 
     fronteira = fetch_rss(f'("AI" OR "artificial intelligence" OR "generative AI") AND ({sites_str} OR "MIT" OR "CSAIL" OR "Carnegie Mellon" OR "CMU" OR "Harvard" OR "Oxford University" OR "University of Cambridge" OR "Alan Turing Institute" OR "Nature Machine Intelligence" OR "IEEE" OR site:arxiv.org)', "en-US", "US")
     articles.extend(fronteira[:15])
+    
+    # 5. DAIR.AI Academy Papers (Curadoria semanal especializada em papers e arquiteturas)
+    dair_articles = fetch_rss("site:academy.dair.ai OR site:dair.ai", "en-US", "US")
+    articles.extend(dair_articles[:5])
+    
+    # 6. Trending Papers do Hugging Face (Top 5 papers com maior impacto/votos da semana)
+    hf_papers = fetch_hf_trending_papers(limit=5)
+    articles.extend(hf_papers)
     
     logger.info(f"Total de notícias mescladas: {len(articles)}")
     
@@ -86,14 +158,17 @@ def fetch_ai_news() -> list[dict]:
     
     # Ordena para dar preferência a artigos que contenham algum domínio positivo configurado
     def matches_positive_domain(art):
-        l = art['link'].lower()
+        l = art.get('link', '').lower()
         return any(pd in l for pd in pos_domains)
         
     sorted_articles = sorted(articles, key=lambda a: 0 if matches_positive_domain(a) else 1)
     
     for article in sorted_articles:
-        if article['link'] not in seen_links:
-            seen_links.add(article['link'])
+        link = article.get('link')
+        if not link:
+            continue
+        if link not in seen_links:
+            seen_links.add(link)
             unique_articles.append(article)
             
     logger.info(f"Retornando {len(unique_articles)} notícias únicas para a IA processar.")

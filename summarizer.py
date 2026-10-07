@@ -73,7 +73,7 @@ def summarize_news_for_whatsapp(articles: list[dict]) -> str:
         "Regras vitais e estritas:\n"
         "1. O texto DEVE ser escrito inteiramente em português do Brasil (pt-BR).\n"
         "2. Dê SEMPRE preferência máxima na adoção da pauta para as notícias MAIS RELEVANTES, comentadas e reproduzidas em outros sites no mundo e no Brasil. Ignore e exclua notícias de impacto menor e isoladas.\n"
-        "3. Você tem que selecionar obrigatoriamente NO MÍNIMO 10 notícias desta elite global e nacional com base na lista fornecida (trazendo um equilíbrio entre notícias do exterior, tecnologia em geral e da área jurídica/direito).\n"
+        "3. Você tem que selecionar obrigatoriamente NO MÍNIMO 10 notícias desta elite global e nacional com base na lista fornecida (trazendo um equilíbrio entre notícias do exterior, tecnologia em geral, papers/pesquisas científicas de ponta e da área jurídica/direito).\n"
         "4. EXPANDA BEM o resumo de cada notícia. O leitor precisa entender o contexto completo, as motivações e os resultados com base apenas no seu texto (escreva em média de 3 a 5 linhas cheias de conteúdo para cada notícia).\n"
         "5. Formate usando o padrão do WhatsApp: negrito (*texto*) para os títulos das notícias, itálicos (_texto_) e adicione emojis atrativos e apropriados sem poluir demais.\n"
         "6. Inclua SEMPRE o link original de cada notícia logo após o resumo explicativo estendido, para que as pessoas possam acessar a fonte e se aprofundar.\n"
@@ -81,7 +81,7 @@ def summarize_news_for_whatsapp(articles: list[dict]) -> str:
         "8. SEMPRE QUE POSSÍVEL, mencione a data do evento ou o dia em que a notícia foi gerada dentro do texto do resumo (ex: 'No último dia 22...', 'Nesta quarta-feira...', etc), usando a 'Data de Publicação' fornecida como referência.\n"
         "9. Inicie com uma saudação calorosa e um texto introdutório comentando brevemente as tendências vistas na área jurídica e internacional do compilado antes das notícias.\n"
         "10. Finalize com uma mensagem de encerramento inovadora, inteligente e criativa, convidando o grupo a dar opinião sobre alguma dessas polêmicas discutidas. PROIBIDO usar clichês ou bordões batidos como 'Ufa! Que semana...', 'Quanta coisa, não é mesmo?' ou similares. Varie sempre o fechamento para não ficar cansativo nos boletins semanais.\n\n"
-        f"Aqui está o compilado bruto de dezenas de notícias coletadas (exterior, geral e área jurídica) para selecionar os pesos pesados e expandir:\n\n{news_text}"
+        f"Aqui está o compilado bruto de dezenas de notícias coletadas (exterior, geral, papers acadêmicos de ponta e área jurídica) para selecionar os pesos pesados e expandir:\n\n{news_text}"
     )
     env_model = os.getenv("GEMINI_MODEL")
     candidate_models = []

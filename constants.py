@@ -32,6 +32,8 @@ DEFAULT_POSITIVE_DOMAINS: list[str] = [
     "deepmind.google",
     "anthropic.com",
     "huggingface.co",
+    "academy.dair.ai",
+    "dair.ai",
     "technologyreview.com",
     "techcrunch.com",
     "wired.com",
