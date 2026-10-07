@@ -3,7 +3,7 @@ import urllib.parse
 import logging
 import json
 import requests
-from constants import DEFAULT_POSITIVE_DOMAINS, DEFAULT_IGNORED_DOMAINS
+from constants import DEFAULT_POSITIVE_DOMAINS, DEFAULT_IGNORED_DOMAINS, DEFAULT_AGENT_DOMAINS
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,15 @@ def get_positive_domains() -> list[str]:
             return config.get("positive_domains", DEFAULT_POSITIVE_DOMAINS)
     except Exception:
         return DEFAULT_POSITIVE_DOMAINS
+
+
+def get_agent_domains() -> list[str]:
+    try:
+        with open("config.json", "r", encoding="utf-8") as f:
+            config = json.load(f)
+            return config.get("agent_domains", DEFAULT_AGENT_DOMAINS)
+    except Exception:
+        return DEFAULT_AGENT_DOMAINS
 
 def fetch_rss(query: str, lang: str = "pt-BR", country: str = "BR") -> list[dict]:
     encoded_query = urllib.parse.quote(query)
@@ -173,3 +182,73 @@ def fetch_ai_news() -> list[dict]:
             
     logger.info(f"Retornando {len(unique_articles)} notícias únicas para a IA processar.")
     return unique_articles
+
+def fetch_agent_ai_news() -> list[dict]:
+    """
+    Busca exclusivamente papers e notícias voltados para desenvolvimento com Agentes de IA,
+    sistemas multi-agentes, tool use, frameworks e inovação científica em IA dos últimos 7 dias.
+    Consulta ao menos 15 fontes de referência global (Hugging Face, DAIR.AI, arXiv, OpenAI,
+    Anthropic, DeepMind, FAIR, Stanford, MIT, BAIR, Microsoft, Papers With Code, The Gradient,
+    Nature, LangChain, LlamaIndex, AutoGPT/AgentOps).
+    """
+    articles = []
+    agent_domains = get_agent_domains()
+
+    # 1. Hugging Face Trending Papers (Top 10 papers mais votados pela comunidade global)
+    hf_papers = fetch_hf_trending_papers(limit=10)
+    articles.extend(hf_papers)
+
+    # 2. DAIR.AI Academy Papers (Curadoria semanal de papers, agentes e arquiteturas)
+    dair_articles = fetch_rss("site:academy.dair.ai OR site:dair.ai", "en-US", "US")
+    articles.extend(dair_articles[:8])
+
+    # 3. Pesquisas de ponta em Agentes nos principais laboratórios e universidades globais
+    # (arXiv, OpenAI, Anthropic, DeepMind, FAIR, Stanford, MIT, Berkeley, Microsoft)
+    lab_query = (
+        '("AI agent" OR "AI agents" OR "multi-agent" OR "autonomous agent" OR "agentic workflow" OR "tool use") '
+        'AND (site:arxiv.org OR site:openai.com OR site:anthropic.com OR site:deepmind.google OR '
+        'site:ai.meta.com OR site:microsoft.com OR site:csail.mit.edu OR site:hai.stanford.edu OR '
+        'site:bair.berkeley.edu OR site:paperswithcode.com OR site:nature.com)'
+    )
+    lab_articles = fetch_rss(lab_query, "en-US", "US")
+    articles.extend(lab_articles[:15])
+
+    # 4. Inovações em Frameworks e Ecossistema de Desenvolvimento de Agentes
+    # (LangChain, LlamaIndex, AutoGen, CrewAI, AutoGPT, AgentOps, Semantic Kernel)
+    dev_query = (
+        '("agent architecture" OR "multi-agent framework" OR "agentic AI" OR "agent evaluation" OR "agent memory") '
+        'AND ("LangChain" OR "LlamaIndex" OR "AutoGen" OR "CrewAI" OR "AgentOps" OR "AutoGPT" OR "Swarm" OR "PydanticAI")'
+    )
+    dev_articles = fetch_rss(dev_query, "en-US", "US")
+    articles.extend(dev_articles[:15])
+
+    # 5. Artigos e publicações do ecossistema e publicações especializadas
+    specialized_query = (
+        '("AI agents" OR "multi-agent systems") AND (site:blog.langchain.dev OR site:thegradient.pub OR site:autogpt.net OR site:agentops.ai OR site:llamaindex.ai)'
+    )
+    spec_articles = fetch_rss(specialized_query, "en-US", "US")
+    articles.extend(spec_articles[:10])
+
+    logger.info(f"Total de notícias e papers de agentes mesclados: {len(articles)}")
+
+    # Prevenção de duplicatas com prioridade para domínios de agentes configurados
+    unique_articles = []
+    seen_links = set()
+
+    def matches_agent_domain(art):
+        l = art.get('link', '').lower()
+        return any(ad in l for ad in agent_domains)
+
+    sorted_articles = sorted(articles, key=lambda a: 0 if matches_agent_domain(a) else 1)
+
+    for article in sorted_articles:
+        link = article.get('link')
+        if not link:
+            continue
+        if link not in seen_links:
+            seen_links.add(link)
+            unique_articles.append(article)
+
+    logger.info(f"Retornando {len(unique_articles)} notícias e papers únicos de Agentes de IA para processamento.")
+    return unique_articles
+

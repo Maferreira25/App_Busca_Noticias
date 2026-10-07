@@ -10,7 +10,13 @@ import re
 import dotenv
 from dotenv import load_dotenv, set_key
 
-from constants import DEFAULT_POSITIVE_DOMAINS, DEFAULT_IGNORED_DOMAINS, SCHEDULE_TASK_NAME
+from constants import (
+    DEFAULT_POSITIVE_DOMAINS,
+    DEFAULT_IGNORED_DOMAINS,
+    DEFAULT_AGENT_DOMAINS,
+    SCHEDULE_TASK_NAME,
+    SCHEDULE_TASK_NAME_AGENTS,
+)
 
 load_dotenv()
 
@@ -29,13 +35,22 @@ def carregar_config():
             "emails": [],
             "ignored_domains": DEFAULT_IGNORED_DOMAINS,
             "positive_domains": DEFAULT_POSITIVE_DOMAINS,
-            "schedule_day": "MON",
-            "schedule_time": "08:00"
+            "schedule_day": "SUN",
+            "schedule_time": "22:00",
+            "agent_schedule_day": "MON",
+            "agent_schedule_time": "08:00",
+            "agent_domains": DEFAULT_AGENT_DOMAINS
         }
     with open(CONFIG_FILE, "r", encoding="utf-8") as f:
         dados = json.load(f)
         if "positive_domains" not in dados:
             dados["positive_domains"] = DEFAULT_POSITIVE_DOMAINS
+        if "agent_domains" not in dados:
+            dados["agent_domains"] = DEFAULT_AGENT_DOMAINS
+        if "agent_schedule_day" not in dados:
+            dados["agent_schedule_day"] = "MON"
+        if "agent_schedule_time" not in dados:
+            dados["agent_schedule_time"] = "08:00"
         return dados
 
 def salvar_config(dados):
@@ -67,14 +82,17 @@ class BoletimApp:
         
         # Tabs
         self.tab_geral = ttk.Frame(self.notebook)
+        self.tab_agentes = ttk.Frame(self.notebook)
         self.tab_fontes = ttk.Frame(self.notebook)
         self.tab_agendamento = ttk.Frame(self.notebook)
         
         self.notebook.add(self.tab_geral, text="Geral & E-mails")
+        self.notebook.add(self.tab_agentes, text="🤖 Feed de Agentes de IA")
         self.notebook.add(self.tab_fontes, text="Fontes & Filtros")
-        self.notebook.add(self.tab_agendamento, text="Agendamento")
+        self.notebook.add(self.tab_agendamento, text="Agendamentos")
         
         self.construir_tab_geral()
+        self.construir_tab_agentes()
         self.construir_tab_fontes()
         self.construir_tab_agendamento()
 
@@ -82,8 +100,72 @@ class BoletimApp:
         btn_frame = tk.Frame(self.tab_geral)
         btn_frame.pack(pady=20)
         
-        self.btn_gerar = tk.Button(btn_frame, text="⚡ Gerar & Enviar Boletim Agora", font=("Arial", 12, "bold"), bg="#4CAF50", fg="white", command=self.gerar_agora)
+        self.btn_gerar = tk.Button(btn_frame, text="⚡ Gerar & Enviar Boletim Geral Agora", font=("Arial", 12, "bold"), bg="#4CAF50", fg="white", command=lambda: self.gerar_agora("geral"))
         self.btn_gerar.pack()
+
+    def construir_tab_agentes(self):
+        btn_frame = tk.Frame(self.tab_agentes)
+        btn_frame.pack(pady=15)
+        
+        self.btn_gerar_agentes = tk.Button(
+            btn_frame,
+            text="🤖 Gerar & Enviar Boletim de Agentes Agora",
+            font=("Arial", 12, "bold"),
+            bg="#8e44ad",
+            fg="white",
+            command=lambda: self.gerar_agora("agentes")
+        )
+        self.btn_gerar_agentes.pack()
+        
+        lbl_info = tk.Label(
+            self.tab_agentes,
+            text="Curadoria técnica de 15 papers e inovações em desenvolvimento com Agentes de IA e sistemas multi-agentes.",
+            font=("Arial", 9, "italic"),
+            fg="#555"
+        )
+        lbl_info.pack(pady=(0, 10))
+
+        # Fontes de Agentes
+        lbl_fontes_ag = tk.Label(
+            self.tab_agentes,
+            text="🌐 Fontes de Referência em Agentes & Pesquisa (1 por linha):",
+            font=("Arial", 10, "bold"),
+            fg="#8e44ad"
+        )
+        lbl_fontes_ag.pack(pady=(10, 3), anchor="w", padx=20)
+        
+        lbl_fontes_sub = tk.Label(
+            self.tab_agentes,
+            text="Hugging Face, DAIR.AI, arXiv, OpenAI, Anthropic, DeepMind, Stanford, MIT, BAIR, Microsoft, LangChain, etc:",
+            font=("Arial", 8),
+            fg="#7f8c8d"
+        )
+        lbl_fontes_sub.pack(anchor="w", padx=20, pady=(0, 5))
+        
+        self.text_agent_domains = scrolledtext.ScrolledText(self.tab_agentes, width=70, height=11)
+        self.text_agent_domains.pack(padx=20, fill="x")
+        self.text_agent_domains.insert("1.0", "\n".join(self.config.get("agent_domains", DEFAULT_AGENT_DOMAINS)))
+        
+        frame_btn_ag = tk.Frame(self.tab_agentes)
+        frame_btn_ag.pack(pady=15)
+        
+        btn_salvar_ag = tk.Button(
+            frame_btn_ag,
+            text="💾 Salvar Fontes de Agentes",
+            font=("Arial", 10, "bold"),
+            bg="#2980b9",
+            fg="white",
+            command=self.salvar_fontes_agentes
+        )
+        btn_salvar_ag.pack(side="left", padx=10)
+        
+        btn_restaurar_ag = tk.Button(
+            frame_btn_ag,
+            text="🔄 Restaurar Fontes Padrão de Agentes",
+            font=("Arial", 9),
+            command=self.restaurar_fontes_agentes_padrao
+        )
+        btn_restaurar_ag.pack(side="left", padx=10)
         
         lbl_emails = tk.Label(self.tab_geral, text="Destinatários de E-mails (1 por linha):")
         lbl_emails.pack(pady=(20, 5), anchor="w", padx=20)
@@ -146,6 +228,19 @@ class BoletimApp:
         btn_restaurar = tk.Button(frame_btn_fontes, text="🔄 Restaurar Fontes Padrão", font=("Arial", 9), command=self.restaurar_fontes_padrao)
         btn_restaurar.pack(side="left", padx=10)
 
+    def salvar_fontes_agentes(self):
+        lista = self.text_agent_domains.get("1.0", tk.END).strip().split('\n')
+        lista = [d.strip().lower() for d in lista if d.strip()]
+        self.config["agent_domains"] = lista
+        salvar_config(self.config)
+        messagebox.showinfo("Sucesso", f"Fontes de agentes atualizadas!\n\n🌐 {len(lista)} fontes de referência monitoradas.")
+
+    def restaurar_fontes_agentes_padrao(self):
+        if messagebox.askyesno("Restaurar Padrões", "Deseja redefinir as fontes de agentes para os padrões recomendados?"):
+            self.text_agent_domains.delete("1.0", tk.END)
+            self.text_agent_domains.insert("1.0", "\n".join(DEFAULT_AGENT_DOMAINS))
+            self.salvar_fontes_agentes()
+
     def construir_tab_agendamento(self):
         self.dias_map = {
             "MON": "Segunda-feira", "TUE": "Terça-feira", "WED": "Quarta-feira",
@@ -153,43 +248,70 @@ class BoletimApp:
         }
         self.dias_reverse = {v: k for k, v in self.dias_map.items()}
         
-        frame = tk.Frame(self.tab_agendamento)
-        frame.pack(pady=20)
+        container = tk.Frame(self.tab_agendamento)
+        container.pack(pady=10, fill="both", expand=True, padx=20)
         
-        dia_config = self.config.get("schedule_day", "MON")
-        hora_config = self.config.get("schedule_time", "08:00")
-        dia_pt = self.dias_map.get(dia_config, "Segunda-feira")
+        # 1. Seção Boletim Geral
+        frame_geral = ttk.LabelFrame(container, text=" 📰 1. Agendamento - Boletim Geral (Notícias & Jurídico) ", padding=10)
+        frame_geral.pack(fill="x", pady=8)
         
-        self.lbl_status = tk.Label(frame, text=f"📅 Programação Atual: Toda {dia_pt} às {hora_config}", font=("Arial", 11, "bold"), fg="#2980b9")
-        self.lbl_status.grid(row=0, columnspan=2, pady=(0, 20))
+        dia_config_g = self.config.get("schedule_day", "SUN")
+        hora_config_g = self.config.get("schedule_time", "22:00")
+        dia_pt_g = self.dias_map.get(dia_config_g, "Domingo")
         
-        tk.Label(frame, text="Configurar Dia:").grid(row=1, column=0, padx=10, pady=10, sticky="e")
-        self.combo_dia = ttk.Combobox(frame, values=list(self.dias_map.values()), state="readonly")
-        self.combo_dia.set(dia_pt)
-        self.combo_dia.grid(row=1, column=1, padx=10, pady=10)
+        self.lbl_status_geral = tk.Label(frame_geral, text=f"📅 Programação Geral: Toda {dia_pt_g} às {hora_config_g}", font=("Arial", 10, "bold"), fg="#27ae60")
+        self.lbl_status_geral.grid(row=0, columnspan=2, pady=(0, 10), sticky="w")
         
-        tk.Label(frame, text="Horário (HH:MM):").grid(row=2, column=0, padx=10, pady=10, sticky="e")
-        self.entry_hora = tk.Entry(frame)
-        self.entry_hora.insert(0, hora_config)
-        self.entry_hora.grid(row=2, column=1, padx=10, pady=10)
-        self.entry_hora.bind("<KeyRelease>", self.formatar_hora)
+        tk.Label(frame_geral, text="Dia da Semana:").grid(row=1, column=0, padx=5, pady=4, sticky="e")
+        self.combo_dia_geral = ttk.Combobox(frame_geral, values=list(self.dias_map.values()), state="readonly", width=18)
+        self.combo_dia_geral.set(dia_pt_g)
+        self.combo_dia_geral.grid(row=1, column=1, padx=5, pady=4, sticky="w")
         
-        btn_agendar = tk.Button(frame, text="Atualizar Tarefa no Windows", command=self.atualizar_agendamento)
-        btn_agendar.grid(row=3, columnspan=2, pady=20)
+        tk.Label(frame_geral, text="Horário (HH:MM):").grid(row=2, column=0, padx=5, pady=4, sticky="e")
+        self.entry_hora_geral = tk.Entry(frame_geral, width=12)
+        self.entry_hora_geral.insert(0, hora_config_g)
+        self.entry_hora_geral.grid(row=2, column=1, padx=5, pady=4, sticky="w")
+        self.entry_hora_geral.bind("<KeyRelease>", lambda e: self.formatar_hora_campo(self.entry_hora_geral, e))
         
-        lbl_info = tk.Label(self.tab_agendamento, text="* O agendamento criará/substituirá uma tarefa no Windows Task Scheduler\nchamada 'BoletimIANews'.", fg="gray")
-        lbl_info.pack(pady=10)
+        btn_agendar_geral = tk.Button(frame_geral, text="💾 Atualizar Tarefa Geral no Windows", font=("Arial", 9, "bold"), bg="#27ae60", fg="white", command=lambda: self.atualizar_agendamento("geral"))
+        btn_agendar_geral.grid(row=3, columnspan=2, pady=10)
 
-    def formatar_hora(self, event):
-        # Ignorar se for backspace para permitir apagar
+        # 2. Seção Boletim Agentes de IA
+        frame_agentes = ttk.LabelFrame(container, text=" 🤖 2. Agendamento - Boletim Técnico (Agentes de IA & Papers) ", padding=10)
+        frame_agentes.pack(fill="x", pady=8)
+        
+        dia_config_a = self.config.get("agent_schedule_day", "MON")
+        hora_config_a = self.config.get("agent_schedule_time", "08:00")
+        dia_pt_a = self.dias_map.get(dia_config_a, "Segunda-feira")
+        
+        self.lbl_status_agentes = tk.Label(frame_agentes, text=f"📅 Programação Agentes: Toda {dia_pt_a} às {hora_config_a}", font=("Arial", 10, "bold"), fg="#8e44ad")
+        self.lbl_status_agentes.grid(row=0, columnspan=2, pady=(0, 10), sticky="w")
+        
+        tk.Label(frame_agentes, text="Dia da Semana:").grid(row=1, column=0, padx=5, pady=4, sticky="e")
+        self.combo_dia_agentes = ttk.Combobox(frame_agentes, values=list(self.dias_map.values()), state="readonly", width=18)
+        self.combo_dia_agentes.set(dia_pt_a)
+        self.combo_dia_agentes.grid(row=1, column=1, padx=5, pady=4, sticky="w")
+        
+        tk.Label(frame_agentes, text="Horário (HH:MM):").grid(row=2, column=0, padx=5, pady=4, sticky="e")
+        self.entry_hora_agentes = tk.Entry(frame_agentes, width=12)
+        self.entry_hora_agentes.insert(0, hora_config_a)
+        self.entry_hora_agentes.grid(row=2, column=1, padx=5, pady=4, sticky="w")
+        self.entry_hora_agentes.bind("<KeyRelease>", lambda e: self.formatar_hora_campo(self.entry_hora_agentes, e))
+        
+        btn_agendar_agentes = tk.Button(frame_agentes, text="💾 Atualizar Tarefa de Agentes no Windows", font=("Arial", 9, "bold"), bg="#8e44ad", fg="white", command=lambda: self.atualizar_agendamento("agentes"))
+        btn_agendar_agentes.grid(row=3, columnspan=2, pady=10)
+
+        lbl_info = tk.Label(container, text="* O agendamento gerencia as tarefas independentes 'BoletimIANews' e 'BoletimIAAgentes' no Windows.", fg="gray", font=("Arial", 8))
+        lbl_info.pack(pady=5)
+
+    def formatar_hora_campo(self, entry_widget, event):
         if event.keysym == "BackSpace":
             return
-            
-        texto = self.entry_hora.get().replace(":", "")
+        texto = entry_widget.get().replace(":", "")
         if len(texto) >= 2:
             novo_texto = texto[:2] + ":" + texto[2:4]
-            self.entry_hora.delete(0, tk.END)
-            self.entry_hora.insert(0, novo_texto)
+            entry_widget.delete(0, tk.END)
+            entry_widget.insert(0, novo_texto)
 
     def salvar_emails(self):
         lista = self.text_emails.get("1.0", tk.END).strip().split('\n')
@@ -239,11 +361,14 @@ class BoletimApp:
             
         messagebox.showinfo("Aviso", "O processo será iniciado. Aguarde alguns segundos até o navegador abrir com o novo QR Code.")
         python_exe = VENV_PYTHON if os.path.exists(VENV_PYTHON) else "python"
-        
-        # Executa o script de reconexão e não bloqueia a interface
         subprocess.Popen(["cmd.exe", "/c", f'"{python_exe}" "{script_path}"'], cwd=BASE_DIR)
 
-    def gerar_agora(self):
+    def gerar_agora(self, tipo="geral"):
+        btn = self.btn_gerar_agentes if tipo == "agentes" else self.btn_gerar
+        btn_label = "🤖 Gerar & Enviar Boletim de Agentes Agora" if tipo == "agentes" else "⚡ Gerar & Enviar Boletim Geral Agora"
+        prefixo = "boletim_ia_agentes" if tipo == "agentes" else "boletim_ia"
+        titulo_dialogo = "Boletim de Agentes de IA" if tipo == "agentes" else "Boletim Geral de IA"
+
         def tarefa():
             try:
                 python_exe = VENV_PYTHON if os.path.exists(VENV_PYTHON) else "python"
@@ -254,8 +379,8 @@ class BoletimApp:
                 history_dir = os.path.join(BASE_DIR, "history")
                 if os.path.exists(history_dir):
                     patterns = [
-                        os.path.join(history_dir, f"boletim_ia_{self.get_today_br()}*.md"),
-                        os.path.join(history_dir, f"boletim_ia_{self.get_today()}*.md"),
+                        os.path.join(history_dir, f"{prefixo}_{self.get_today_br()}*.md"),
+                        os.path.join(history_dir, f"{prefixo}_{self.get_today()}*.md"),
                     ]
                     for pattern in patterns:
                         for fpath in glob.glob(pattern):
@@ -266,7 +391,7 @@ class BoletimApp:
                 
                 creation_flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
                 res = subprocess.run(
-                    [python_exe, main_script],
+                    [python_exe, main_script, "--type", tipo],
                     capture_output=True,
                     text=True,
                     cwd=BASE_DIR,
@@ -295,32 +420,30 @@ class BoletimApp:
                     
                     self.root.after(0, lambda msg=detalhe_erro: messagebox.showerror(
                         "Erro na Geração", 
-                        f"Ocorreu um erro durante a execução:\n\n{msg}"
+                        f"Ocorreu um erro durante a execução do {titulo_dialogo}:\n\n{msg}"
                     ))
                 else:
                     self.root.after(0, lambda: messagebox.showinfo(
                         "Sucesso Total!", 
-                        "O Boletim foi gerado e enviado com sucesso!\n\n"
+                        f"O {titulo_dialogo} foi gerado e enviado com sucesso!\n\n"
                         "✅ Destinatários de e-mail notificados.\n"
                         "✅ Mensagem enviada para o WhatsApp."
                     ))
             except Exception as e:
                 self.root.after(0, lambda msg=str(e): messagebox.showerror("Erro", f"Aconteceu um erro durante a geração:\n{msg}"))
             finally:
-                self.root.after(0, lambda: self.btn_gerar.config(state="normal", text="⚡ Gerar & Enviar Boletim Agora"))
+                self.root.after(0, lambda: btn.config(state="normal", text=btn_label))
         
-        self.btn_gerar.config(state="disabled", text="⏳ Gerando Boletim (aguarde cerca de 1 min)...")
+        btn.config(state="disabled", text="⏳ Gerando Boletim (aguarde cerca de 1 min)...")
         threading.Thread(target=tarefa, daemon=True).start()
 
     def iniciar_docker_background(self):
         try:
             from docker_manager import ensure_environment
             logger.info("Iniciando rotina de garantia do Docker via Interface...")
-            
             self.root.after(0, lambda: self.lbl_docker_status.config(text="Serviços (Docker/API): Iniciando (aguarde)...", fg="#f39c12"))
             
             success = ensure_environment()
-            
             if success:
                 self.root.after(0, lambda: self.lbl_docker_status.config(text="Serviços (Docker/API): Online ✅", fg="#27ae60", font=("Arial", 10, "bold")))
             else:
@@ -337,12 +460,30 @@ class BoletimApp:
         from datetime import datetime
         return datetime.now().strftime("%d-%m-%Y")
 
+    def atualizar_agendamento(self, tipo="geral"):
+        if tipo == "agentes":
+            dia_pt = self.combo_dia_agentes.get()
+            hora = self.entry_hora_agentes.get().strip()
+            task_name = SCHEDULE_TASK_NAME_AGENTS
+            task_desc = "Envio semanal de papers e inovacoes com Agentes de IA"
+            dia_key = "agent_schedule_day"
+            hora_key = "agent_schedule_time"
+            lbl_widget = self.lbl_status_agentes
+            lbl_prefix = "📅 Programação Agentes: Toda"
+            arg_flag = "--type agentes"
+            log_name = "debug_agendador_agentes.log"
+        else:
+            dia_pt = self.combo_dia_geral.get()
+            hora = self.entry_hora_geral.get().strip()
+            task_name = SCHEDULE_TASK_NAME
+            task_desc = "Envio semanal de noticias gerais e juridicas de IA"
+            dia_key = "schedule_day"
+            hora_key = "schedule_time"
+            lbl_widget = self.lbl_status_geral
+            lbl_prefix = "📅 Programação Geral: Toda"
+            arg_flag = "--type geral"
+            log_name = "debug_agendador.log"
 
-    def atualizar_agendamento(self):
-        dia_pt = self.combo_dia.get()
-        hora = self.entry_hora.get().strip()
-        
-        # Validação estrita de formato de hora para prevenir injeção no comando PowerShell
         if not re.match(r"^([01]\d|2[0-3]):[0-5]\d$", hora):
             messagebox.showerror(
                 "Horário Inválido",
@@ -351,31 +492,31 @@ class BoletimApp:
             return
 
         dia_en = self.dias_reverse.get(dia_pt, "MON")
-        
-        self.config["schedule_day"] = dia_en
-        self.config["schedule_time"] = hora
+        self.config[dia_key] = dia_en
+        self.config[hora_key] = hora
         salvar_config(self.config)
-        
+
         script_path = os.path.join(BASE_DIR, 'main.py')
         python_exe = VENV_PYTHON if os.path.exists(VENV_PYTHON) else "python"
-        
-        # Usando PowerShell + CMD com constante compartilhada SCHEDULE_TASK_NAME
+
         ps_cmd = (
-            f"$action = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument '/c \"\"{python_exe}\" \"{script_path}\" > \"{os.path.join(BASE_DIR, 'debug_agendador.log')}\" 2>&1\"' -WorkingDirectory '{BASE_DIR}'; "
+            f"$action = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument '/c \"\"{python_exe}\" \"{script_path}\" {arg_flag} > \"{os.path.join(BASE_DIR, log_name)}\" 2>&1\"' -WorkingDirectory '{BASE_DIR}'; "
             f"$trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek {dia_en} -At {hora}; "
-            f"Register-ScheduledTask -Action $action -Trigger $trigger -TaskName '{SCHEDULE_TASK_NAME}' -Description 'Envio semanal de noticias de IA' -Force"
+            f"Register-ScheduledTask -Action $action -Trigger $trigger -TaskName '{task_name}' -Description '{task_desc}' -Force"
         )
-        
+
         try:
             subprocess.run(["powershell", "-Command", ps_cmd], check=True, cwd=BASE_DIR, capture_output=True)
-            self.lbl_status.config(text=f"📅 Programação Atual: Toda {dia_pt} às {hora}")
-            messagebox.showinfo("Sucesso", f"Tarefa agendada no Windows para toda {dia_pt} às {hora} horas!")
+            lbl_widget.config(text=f"{lbl_prefix} {dia_pt} às {hora}")
+            messagebox.showinfo("Sucesso", f"Tarefa '{task_name}' agendada no Windows para toda {dia_pt} às {hora} horas!")
         except subprocess.CalledProcessError as e:
             error_msg = e.stderr.decode('latin-1', errors='replace')
-            logger.error(f"Erro ao agendar tarefa: {error_msg}")
-            messagebox.showerror("Erro de Permissao", 
-                "Nao foi possivel agendar a tarefa.\n\n"
-                "SOLUCAO: Clique com o botao direito no programa (ou no VS Code) e escolha 'Executar como Administrador'.")
+            logger.error(f"Erro ao agendar tarefa {task_name}: {error_msg}")
+            messagebox.showerror(
+                "Erro de Permissão", 
+                f"Não foi possível agendar a tarefa '{task_name}'.\n\n"
+                "SOLUÇÃO: Execute o programa ou terminal como Administrador."
+            )
 
 if __name__ == "__main__":
     root = tk.Tk()

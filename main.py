@@ -7,8 +7,9 @@ from datetime import datetime
 import json
 from dotenv import load_dotenv
 
-from fetcher import fetch_ai_news
-from summarizer import summarize_news_for_whatsapp
+import argparse
+from fetcher import fetch_ai_news, fetch_agent_ai_news
+from summarizer import summarize_news_for_whatsapp, summarize_agent_news_for_whatsapp
 from storage import save_summary_locally
 from whatsapp_sender import send_whatsapp_message
 from emailer import send_email_notification
@@ -34,23 +35,36 @@ logger = logging.getLogger(__name__)
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Automação de Busca de Notícias e Papers de IA")
+    parser.add_argument(
+        "--type",
+        choices=["geral", "agentes"],
+        default="geral",
+        help="Tipo de boletim a ser gerado ('geral' para notícias amplas e jurídicas, 'agentes' para papers e novidades técnicas de agentes)"
+    )
+    args = parser.parse_args()
+
+    tipo_boletim = args.type
+    prefixo = "boletim_ia_agentes" if tipo_boletim == "agentes" else "boletim_ia"
+    nome_exibicao = "Agentes de IA & Papers" if tipo_boletim == "agentes" else "Geral (Notícias & Jurídico)"
+
     logger.info("=======================================================================")
-    logger.info("Iniciando sistema autônomo de busca de notícias de IA...")
+    logger.info(f"Iniciando sistema autônomo de busca de IA - Modalidade: {nome_exibicao}...")
     
     # 0. Garantir infraestrutura (Docker e Evolution API)
     env_ok = ensure_environment()
     if not env_ok:
         logger.warning("Não foi possível garantir que o Docker/API estejam rodando. O envio de WhatsApp pode falhar.")
 
-    # Verificação de segurança: Não rodar de novo se já rodou hoje.
+    # Verificação de segurança: Não rodar de novo se já rodou hoje para este tipo específico
     today_br = datetime.now().strftime("%d-%m-%Y")
     today_legacy = datetime.now().strftime("%Y-%m-%d")
     history_dir = "history"
     if os.path.exists(history_dir):
-        existing_bulletins = glob.glob(os.path.join(history_dir, f"boletim_ia_{today_br}_*.md")) + \
-                             glob.glob(os.path.join(history_dir, f"boletim_ia_{today_legacy}_*.md"))
+        existing_bulletins = glob.glob(os.path.join(history_dir, f"{prefixo}_{today_br}_*.md")) + \
+                             glob.glob(os.path.join(history_dir, f"{prefixo}_{today_legacy}_*.md"))
         if existing_bulletins:
-            logger.info("INFO: Um boletim ja foi gerado com sucesso no dia de hoje. Abortando execucao.")
+            logger.info(f"INFO: Um boletim de '{tipo_boletim}' já foi gerado com sucesso no dia de hoje. Abortando execução.")
             return
 
     if not os.getenv("GEMINI_API_KEY"):
@@ -61,17 +75,23 @@ def main():
         logger.warning("Aviso Mínimo: As credenciais de E-mail não estão no .env. O script rodará, mas o e-mail não será disparado.")
         
     try:
-        # 1. Buscar Notícias
-        logger.info("Passo 1/5: Buscando notícias recentes via RSS do Google News...")
-        articles = fetch_ai_news()
-        
-        # 2. Resumir e formatar com IA
-        logger.info("Passo 2/5: Processando com o Gemini e formatando texto pro WhatsApp...")
-        whatsapp_message = summarize_news_for_whatsapp(articles)
+        # 1. Buscar Notícias / Papers conforme a modalidade
+        if tipo_boletim == "agentes":
+            logger.info("Passo 1/5: Buscando papers e notícias de Agentes de IA nas 15+ fontes mundiais de referência...")
+            articles = fetch_agent_ai_news()
+            
+            logger.info("Passo 2/5: Processando com o Gemini para selecionar os 15 principais papers e inovações com explicações simples...")
+            whatsapp_message = summarize_agent_news_for_whatsapp(articles)
+        else:
+            logger.info("Passo 1/5: Buscando notícias recentes via RSS do Google News...")
+            articles = fetch_ai_news()
+            
+            logger.info("Passo 2/5: Processando com o Gemini e formatando texto pro WhatsApp...")
+            whatsapp_message = summarize_news_for_whatsapp(articles)
         
         # 3. Salvar localmente
         logger.info("Passo 3/5: Salvando o material final gerado na pasta de histórico...")
-        filepath = save_summary_locally(whatsapp_message)
+        filepath = save_summary_locally(whatsapp_message, prefix=prefixo)
         
         # 4. Enviar E-mail
         logger.info("Passo 4/5: Disparando notificação por e-mail via SMTP...")

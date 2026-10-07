@@ -83,6 +83,61 @@ def summarize_news_for_whatsapp(articles: list[dict]) -> str:
         "10. Finalize com uma mensagem de encerramento inovadora, inteligente e criativa, convidando o grupo a dar opinião sobre alguma dessas polêmicas discutidas. PROIBIDO usar clichês ou bordões batidos como 'Ufa! Que semana...', 'Quanta coisa, não é mesmo?' ou similares. Varie sempre o fechamento para não ficar cansativo nos boletins semanais.\n\n"
         f"Aqui está o compilado bruto de dezenas de notícias coletadas (exterior, geral, papers acadêmicos de ponta e área jurídica) para selecionar os pesos pesados e expandir:\n\n{news_text}"
     )
+    return _call_gemini_with_fallback(client, prompt_user, prompt_system)
+
+
+def summarize_agent_news_for_whatsapp(articles: list[dict]) -> str:
+    """
+    Recebe artigos e papers focados em Agentes de IA e utiliza a API do Gemini
+    para selecionar os 15 principais papers e inovações da semana, gerando um resumo
+    em linguagem simples e acessível, com indicação explícita da fonte e link.
+    """
+    api_key = os.getenv("GEMINI_API_KEY")
+    client = genai.Client(api_key=api_key)
+    
+    if not articles:
+        return "Não encontrei novidades ou papers relevantes sobre Agentes de IA nesta semana."
+        
+    top_articles = articles[:40]
+    
+    from datetime import datetime, timedelta
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=7)
+    period_str = f"{start_date.strftime('%d/%m')} a {end_date.strftime('%d/%m/%Y')}"
+
+    news_text = ""
+    for i, article in enumerate(top_articles, 1):
+        short_link = shorten_url(article.get('link', ''))
+        title = article.get('title', 'Sem título')
+        published = article.get('published', 'Data desconhecida')
+        summary = article.get('summary', '')
+        news_text += f"{i}. Título: {title}\nLink: {short_link}\nData de Publicação: {published}\nResumo/Abstract: {summary}\n\n"
+        
+    prompt_system = (
+        "Você é um engenheiro sênior e especialista em Inteligência Artificial, especializado em "
+        "desenvolvimento de Agentes de IA, arquiteturas multi-agentes e sistemas autônomos.\n"
+        "Sua missão é explicar papers científicos complexos e inovações técnicas em linguagem simples, "
+        "didática e cativante para desenvolvedores, pesquisadores e entusiastas de tecnologia em grupos de WhatsApp.\n"
+        "Seja direto, inspirador, preciso e com alto valor educativo."
+    )
+    
+    prompt_user = (
+        f"Selecione e resuma os 15 PRINCIPAIS papers e inovações em desenvolvimento com Agentes de IA da última semana (Período: {period_str}).\n"
+        "Regras vitais e estritas:\n"
+        "1. O texto DEVE ser escrito inteiramente em português do Brasil (pt-BR).\n"
+        "2. Você DEVE selecionar exatamente 15 papers/inovações mais relevantes e inovadores a partir da lista fornecida (foco em: arquitetura de agentes, raciocínio/reasoning, tool-use, multi-agent workflows, memória e benchmarks).\n"
+        "3. LINGUAGEM SIMPLES E DIDÁTICA: Explique o que o paper/inovação faz, o problema prático que ele resolve e como funciona em termos claros (de 3 a 5 linhas por item), evitando jargões sem explicação.\n"
+        "4. INDICAÇÃO DE FONTE E LINK: Para cada um dos 15 itens, indique explicitamente a fonte (ex: *Fonte:* Hugging Face / arXiv / DAIR.AI / OpenAI / MIT / etc) e insira o link original correspondente fornecido logo abaixo.\n"
+        "5. Formate usando o padrão do WhatsApp: negrito (*texto*) para títulos dos papers, itálicos (_texto_) e emojis tecnológicos modernos e elegantes.\n"
+        "6. O título do boletim DEVE ser chamativo: 🤖 *BOLETIM TÉCNICO: AGENTES DE IA & PAPERS ({period_str})*.\n"
+        "7. Inicie com uma breve introdução de alto nível destacando as principais tendências vistas nos papers desta semana (ex: avanços em memória de longo prazo, cooperação multi-agente, redução de alucinações, etc).\n"
+        "8. Finalize com uma reflexão provocativa e inspiradora sobre o futuro dos agentes para debates no grupo.\n\n"
+        f"Aqui está a lista de papers e novidades de agentes coletados para sua curadoria:\n\n{news_text}"
+    )
+    return _call_gemini_with_fallback(client, prompt_user, prompt_system)
+
+
+def _call_gemini_with_fallback(client, prompt_user: str, prompt_system: str, temperature: float = 0.7) -> str:
     env_model = os.getenv("GEMINI_MODEL")
     candidate_models = []
     if env_model:
@@ -101,7 +156,7 @@ def summarize_news_for_whatsapp(articles: list[dict]) -> str:
                     contents=prompt_user,
                     config=types.GenerateContentConfig(
                         system_instruction=prompt_system,
-                        temperature=0.7
+                        temperature=temperature
                     )
                 )
                 
@@ -127,4 +182,5 @@ def summarize_news_for_whatsapp(articles: list[dict]) -> str:
     if last_error is not None:
         raise last_error
     raise RuntimeError("Todos os modelos do Gemini falharam na sumarização.")
+
 

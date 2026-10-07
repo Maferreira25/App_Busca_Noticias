@@ -58,3 +58,26 @@ DEFAULT_IGNORED_DOMAINS: list[str] = [
 ]
 
 SCHEDULE_TASK_NAME: str = "BoletimIANews"
+SCHEDULE_TASK_NAME_AGENTS: str = "BoletimIAAgentes"
+
+DEFAULT_AGENT_DOMAINS: list[str] = [
+    "huggingface.co",
+    "academy.dair.ai",
+    "dair.ai",
+    "arxiv.org",
+    "openai.com",
+    "anthropic.com",
+    "deepmind.google",
+    "ai.meta.com",
+    "hai.stanford.edu",
+    "csail.mit.edu",
+    "bair.berkeley.edu",
+    "microsoft.com/en-us/research",
+    "paperswithcode.com",
+    "thegradient.pub",
+    "nature.com",
+    "blog.langchain.dev",
+    "llamaindex.ai",
+    "autogpt.net",
+    "agentops.ai",
+]
