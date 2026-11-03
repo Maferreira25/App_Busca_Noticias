@@ -7,6 +7,9 @@ import subprocess
 import threading
 import logging
 import re
+import time
+import base64
+import requests
 import dotenv
 from dotenv import load_dotenv, set_key
 
@@ -61,7 +64,7 @@ class BoletimApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Painel de Automação - Notícias IA")
-        self.root.geometry("680x740")
+        self.root.geometry("680x760")
         
         lbl_title = tk.Label(root, text="🚀 Central de Automação de Notícias de IA", font=("Arial", 16, "bold"), fg="#2c3e50")
         lbl_title.pack(pady=(15, 0))
@@ -84,16 +87,19 @@ class BoletimApp:
         self.tab_geral = ttk.Frame(self.notebook)
         self.tab_agentes = ttk.Frame(self.notebook)
         self.tab_contatos = ttk.Frame(self.notebook)
+        self.tab_whatsapp = ttk.Frame(self.notebook)
         self.tab_agendamento = ttk.Frame(self.notebook)
         
         self.notebook.add(self.tab_geral, text="Geral & Fontes")
         self.notebook.add(self.tab_agentes, text="🤖 Feed de Agentes de IA")
         self.notebook.add(self.tab_contatos, text="E-mails & WhatsApp")
+        self.notebook.add(self.tab_whatsapp, text="📲 Conexão WhatsApp")
         self.notebook.add(self.tab_agendamento, text="Agendamentos")
         
         self.construir_tab_geral()
         self.construir_tab_agentes()
         self.construir_tab_contatos()
+        self.construir_tab_whatsapp()
         self.construir_tab_agendamento()
 
     def construir_tab_geral(self):
@@ -384,14 +390,386 @@ class BoletimApp:
             messagebox.showerror("Erro", f"Não foi possível salvar o número no .env: {e}")
 
     def reconectar_whatsapp(self):
-        script_path = os.path.join(BASE_DIR, "reconectar_whatsapp.py")
-        if not os.path.exists(script_path):
-            messagebox.showerror("Erro", "Script de reconexão não encontrado!")
+        self.notebook.select(self.tab_whatsapp)
+        self.resetar_e_gerar_qrcode()
+
+    def obter_credenciais_evolution(self):
+        url = os.getenv("EVOLUTION_API_URL", "http://localhost:8080").rstrip("/")
+        key = os.getenv("EVOLUTION_API_KEY", "")
+        instance = os.getenv("EVOLUTION_INSTANCE", "BoletimIA")
+        return url, key, instance
+
+    def construir_tab_whatsapp(self):
+        container = tk.Frame(self.tab_whatsapp)
+        container.pack(fill="both", expand=True, padx=20, pady=10)
+
+        # 1. Header
+        lbl_header = tk.Label(
+            container, 
+            text="📲 Central de Conexão WhatsApp (Evolution API)", 
+            font=("Arial", 11, "bold"), 
+            fg="#2c3e50"
+        )
+        lbl_header.pack(pady=(2, 2), anchor="w")
+
+        lbl_header_sub = tk.Label(
+            container, 
+            text="Monitore a sessão, realize o reset completo e escaneie o QR Code diretamente nesta tela.", 
+            font=("Arial", 8), 
+            fg="#7f8c8d"
+        )
+        lbl_header_sub.pack(anchor="w", pady=(0, 10))
+
+        # 2. Card de Status
+        frame_status = ttk.LabelFrame(container, text=" Status da Conexão ", padding=10)
+        frame_status.pack(fill="x", pady=(0, 10))
+
+        frame_status_inner = tk.Frame(frame_status)
+        frame_status_inner.pack(fill="x")
+
+        self.lbl_wa_status_icon = tk.Label(frame_status_inner, text="⏳", font=("Arial", 16))
+        self.lbl_wa_status_icon.pack(side="left", padx=(5, 12))
+
+        frame_status_text = tk.Frame(frame_status_inner)
+        frame_status_text.pack(side="left", fill="x", expand=True)
+
+        self.lbl_wa_status_title = tk.Label(
+            frame_status_text, 
+            text="Consultando Evolution API...", 
+            font=("Arial", 10, "bold"), 
+            fg="#2c3e50"
+        )
+        self.lbl_wa_status_title.pack(anchor="w")
+
+        self.lbl_wa_status_desc = tk.Label(
+            frame_status_text, 
+            text="Aguarde enquanto verificamos a conexão do WhatsApp...", 
+            font=("Arial", 9), 
+            fg="#7f8c8d"
+        )
+        self.lbl_wa_status_desc.pack(anchor="w")
+
+        btn_verificar = tk.Button(
+            frame_status, 
+            text="🔄 Atualizar Status", 
+            font=("Arial", 9), 
+            command=self.verificar_status_whatsapp
+        )
+        btn_verificar.pack(anchor="e", pady=(4, 0))
+
+        # 3. Botões de Ação
+        frame_acoes = tk.Frame(container)
+        frame_acoes.pack(fill="x", pady=(0, 10))
+
+        self.btn_reset_qr = tk.Button(
+            frame_acoes,
+            text="🔄 Resetar Sessão & Gerar Novo QR Code",
+            font=("Arial", 10, "bold"),
+            bg="#e67e22",
+            fg="white",
+            activebackground="#d35400",
+            activeforeground="white",
+            padx=12,
+            pady=6,
+            command=self.resetar_e_gerar_qrcode
+        )
+        self.btn_reset_qr.pack(side="left", padx=(0, 10))
+
+        self.btn_teste_wa = tk.Button(
+            frame_acoes,
+            text="✉️ Enviar Mensagem de Teste",
+            font=("Arial", 9, "bold"),
+            bg="#27ae60",
+            fg="white",
+            activebackground="#219150",
+            activeforeground="white",
+            padx=10,
+            pady=6,
+            command=self.enviar_teste_whatsapp
+        )
+        self.btn_teste_wa.pack(side="left")
+
+        # 4. Área de Exibição do QR Code
+        self.frame_qr_display = ttk.LabelFrame(container, text=" Pareamento via QR Code ", padding=10)
+        self.frame_qr_display.pack(fill="both", expand=True)
+
+        self.lbl_qr_msg = tk.Label(
+            self.frame_qr_display,
+            text="Se a sessão estiver desconectada ou instável, clique no botão acima para resetar e gerar o QR Code.",
+            font=("Arial", 9, "italic"),
+            fg="#555",
+            wraplength=580
+        )
+        self.lbl_qr_msg.pack(pady=(0, 6))
+
+        # Moldura do QR Code
+        self.frame_qr_box = tk.Frame(self.frame_qr_display, bg="#ffffff", bd=2, relief="groove")
+        self.frame_qr_box.pack(pady=4)
+
+        self.lbl_qr_image = tk.Label(
+            self.frame_qr_box, 
+            text="Nenhum QR Code ativo no momento.", 
+            bg="#ffffff", 
+            font=("Arial", 9), 
+            width=36, 
+            height=13
+        )
+        self.lbl_qr_image.pack(padx=8, pady=8)
+        self.qr_photo = None
+
+        self.lbl_instrucao_qr = tk.Label(
+            self.frame_qr_display,
+            text="Instruções: Abra o WhatsApp no celular > Aparelhos Conectados > Conectar um aparelho > Escaneie o QR Code.",
+            font=("Arial", 8),
+            fg="#7f8c8d",
+            justify="center",
+            wraplength=560
+        )
+        self.lbl_instrucao_qr.pack(pady=(6, 2))
+
+        # Checagem inicial de status após abrir
+        self.root.after(1200, self.verificar_status_whatsapp)
+
+    def verificar_status_whatsapp(self):
+        def tarefa():
+            url, key, inst = self.obter_credenciais_evolution()
+            headers = {"apikey": key, "Content-Type": "application/json"}
+            try:
+                r_state = requests.get(f"{url}/instance/connectionState/{inst}", headers=headers, timeout=5)
+                if r_state.status_code == 200:
+                    state = r_state.json().get("instance", {}).get("state", "").lower()
+                    if state == "open":
+                        detalhes = ""
+                        try:
+                            r_inst = requests.get(f"{url}/instance/fetchInstances", headers=headers, timeout=5)
+                            if r_inst.status_code == 200:
+                                for item in r_inst.json():
+                                    dados_inst = item.get("instance", {})
+                                    if dados_inst.get("instanceName") == inst:
+                                        owner = dados_inst.get("owner", "").split("@")[0]
+                                        name = dados_inst.get("profileName", "")
+                                        detalhes = f" | {name} ({owner})" if owner else ""
+                                        break
+                        except Exception:
+                            pass
+
+                        self.root.after(0, lambda: self._atualizar_ui_status(
+                            "🟢",
+                            "WhatsApp Conectado com Sucesso! ✅",
+                            f"Instância: {inst}{detalhes} - Sessão ativa e pronta para envios.",
+                            "#27ae60",
+                            is_open=True
+                        ))
+                        return
+                    elif state == "connecting":
+                        self.root.after(0, lambda: self._atualizar_ui_status(
+                            "🟡",
+                            "WhatsApp Conectando... ⏳",
+                            f"Instância: {inst} - Estabelecendo sincronização com o WhatsApp.",
+                            "#f39c12",
+                            is_open=False
+                        ))
+                        return
+
+                self.root.after(0, lambda: self._atualizar_ui_status(
+                    "🔴",
+                    "WhatsApp Desconectado ❌",
+                    f"Instância: {inst} - Sessão desconectada. Clique em 'Resetar Sessão & Gerar Novo QR Code'.",
+                    "#c0392b",
+                    is_open=False
+                ))
+            except Exception as e:
+                self.root.after(0, lambda: self._atualizar_ui_status(
+                    "⚠️",
+                    "Evolution API Indisponível ⚠️",
+                    f"Não foi possível conectar em {url} ({e}). Verifique se o Docker está online.",
+                    "#e74c3c",
+                    is_open=False
+                ))
+
+        threading.Thread(target=tarefa, daemon=True).start()
+
+    def _atualizar_ui_status(self, icon, title, desc, color, is_open=False):
+        self.lbl_wa_status_icon.config(text=icon)
+        self.lbl_wa_status_title.config(text=title, fg=color)
+        self.lbl_wa_status_desc.config(text=desc)
+        if is_open and self.qr_photo is not None:
+            self.qr_photo = None
+            self.lbl_qr_image.config(
+                image="",
+                text="✅ Sessão ativa!\nSeu WhatsApp já está conectado e pronto para uso.",
+                fg="#27ae60",
+                font=("Arial", 11, "bold"),
+                width=36,
+                height=11
+            )
+            self.lbl_qr_msg.config(
+                text="Tudo pronto! Caso precise trocar de aparelho ou reiniciar a sessão, clique em Resetar.",
+                fg="#27ae60"
+            )
+
+    def resetar_e_gerar_qrcode(self):
+        if not messagebox.askyesno(
+            "Confirmar Reset",
+            "Deseja resetar a sessão do WhatsApp na Evolution API e gerar um novo QR Code diretamente na tela?\n\n"
+            "Isso deslogará a sessão anterior para limpar eventuais erros de cache."
+        ):
             return
-            
-        messagebox.showinfo("Aviso", "O processo será iniciado. Aguarde alguns segundos até o navegador abrir com o novo QR Code.")
-        python_exe = VENV_PYTHON if os.path.exists(VENV_PYTHON) else "python"
-        subprocess.Popen(["cmd.exe", "/c", f'"{python_exe}" "{script_path}"'], cwd=BASE_DIR)
+
+        self.btn_reset_qr.config(state="disabled", text="⏳ Resetando sessão...")
+        self.lbl_qr_msg.config(text="Limpando sessão antiga e gerando novo QR Code... Aguarde alguns instantes.", fg="#e67e22")
+        self.lbl_qr_image.config(image="", text="Gerando QR Code... Aguarde.", fg="#555", width=36, height=11)
+
+        def tarefa():
+            url, key, inst = self.obter_credenciais_evolution()
+            headers = {"apikey": key, "Content-Type": "application/json"}
+
+            try:
+                try:
+                    requests.delete(f"{url}/instance/logout/{inst}", headers=headers, timeout=6)
+                except Exception:
+                    pass
+
+                try:
+                    requests.delete(f"{url}/instance/delete/{inst}", headers=headers, timeout=6)
+                except Exception:
+                    pass
+
+                time.sleep(2)
+
+                payload = {
+                    "instanceName": inst,
+                    "token": key,
+                    "qrcode": True
+                }
+                requests.post(f"{url}/instance/create", json=payload, headers=headers, timeout=10)
+                time.sleep(1)
+
+                base64_str = None
+                for _ in range(5):
+                    try:
+                        r_qr = requests.get(f"{url}/instance/connect/{inst}", headers=headers, timeout=10)
+                        if r_qr.status_code == 200:
+                            data = r_qr.json()
+                            base64_str = data.get("base64") or (data.get("qrcode", {}).get("base64") if isinstance(data.get("qrcode"), dict) else None)
+                            if base64_str:
+                                break
+                    except Exception:
+                        pass
+                    time.sleep(2)
+
+                if base64_str:
+                    if "," in base64_str:
+                        base64_str = base64_str.split(",")[1]
+
+                    try:
+                        with open(os.path.join(BASE_DIR, "qrcode.png"), "wb") as f:
+                            f.write(base64.b64decode(base64_str))
+                    except Exception:
+                        pass
+
+                    def atualizar_qr_ui(b64_data):
+                        # Usa o suporte nativo do Tkinter a PNG em base64 (sem depender de PIL/Pillow)
+                        raw_photo = tk.PhotoImage(data=b64_data)
+                        if raw_photo.width() > 250:
+                            self.qr_photo = raw_photo.subsample(3, 3).zoom(2, 2)
+                        else:
+                            self.qr_photo = raw_photo
+                        self.lbl_qr_image.config(image=self.qr_photo, text="", width=0, height=0)
+                        self.lbl_qr_msg.config(
+                            text="📲 QR Code gerado! Aponte a câmera do seu WhatsApp para o código abaixo:",
+                            fg="#27ae60",
+                            font=("Arial", 9, "bold")
+                        )
+                        self.lbl_wa_status_icon.config(text="📱")
+                        self.lbl_wa_status_title.config(text="Aguardando Leitura do QR Code", fg="#f39c12")
+                        self.lbl_wa_status_desc.config(text="Escaneie o código abaixo com o WhatsApp do seu celular.")
+                        self.btn_reset_qr.config(state="normal", text="🔄 Resetar Sessão & Gerar Novo QR Code")
+
+                    self.root.after(0, lambda: atualizar_qr_ui(base64_str))
+                    self._monitorar_leitura_qrcode()
+                else:
+                    def falha_qr():
+                        self.lbl_qr_image.config(
+                            image="",
+                            text="⚠️ Não foi possível obter o QR Code da Evolution API.\nVerifique se o container está online.",
+                            fg="#c0392b",
+                            width=36,
+                            height=11
+                        )
+                        self.lbl_qr_msg.config(text="Falha na obtenção do QR Code.", fg="#c0392b")
+                        self.btn_reset_qr.config(state="normal", text="🔄 Resetar Sessão & Gerar Novo QR Code")
+                        messagebox.showwarning("Aviso", "A Evolution API demorou para responder com o QR Code. Tente novamente em instantes.")
+
+                    self.root.after(0, falha_qr)
+
+            except Exception as e:
+                logger.error(f"Erro no reset do WhatsApp: {e}")
+                self.root.after(0, lambda: (
+                    self.btn_reset_qr.config(state="normal", text="🔄 Resetar Sessão & Gerar Novo QR Code"),
+                    messagebox.showerror("Erro no Reset", f"Falha ao se comunicar com a Evolution API:\n{e}")
+                ))
+
+        threading.Thread(target=tarefa, daemon=True).start()
+
+    def _monitorar_leitura_qrcode(self):
+        def monitor():
+            url, key, inst = self.obter_credenciais_evolution()
+            headers = {"apikey": key, "Content-Type": "application/json"}
+            for _ in range(40):
+                time.sleep(3)
+                try:
+                    r = requests.get(f"{url}/instance/connectionState/{inst}", headers=headers, timeout=5)
+                    if r.status_code == 200:
+                        state = r.json().get("instance", {}).get("state", "").lower()
+                        if state == "open":
+                            self.root.after(0, self.verificar_status_whatsapp)
+                            self.root.after(0, lambda: messagebox.showinfo(
+                                "WhatsApp Conectado!",
+                                "Parabéns! O WhatsApp foi conectado com sucesso à Evolution API."
+                            ))
+                            break
+                except Exception:
+                    pass
+
+        threading.Thread(target=monitor, daemon=True).start()
+
+    def enviar_teste_whatsapp(self):
+        phone = os.getenv("WHATSAPP_PHONE", "").strip()
+        if not phone and hasattr(self, 'entry_wa_phone'):
+            phone = self.entry_wa_phone.get().strip()
+
+        if not phone:
+            messagebox.showwarning("Aviso", "Nenhum número de WhatsApp configurado! Salve o número na aba 'E-mails & WhatsApp'.")
+            return
+
+        self.btn_teste_wa.config(state="disabled", text="⏳ Enviando...")
+
+        def tarefa():
+            try:
+                from whatsapp_sender import send_whatsapp_message
+                msg = (
+                    "🤖 *Teste da Central de Automação de IA*\n\n"
+                    "Olá! Sua conexão via Evolution API está *100% ativa e funcional*.\n"
+                    "Os próximos boletins serão entregues diretamente por aqui!"
+                )
+                sucesso = send_whatsapp_message(msg)
+                if sucesso:
+                    self.root.after(0, lambda: messagebox.showinfo(
+                        "Teste Enviado!", 
+                        f"Mensagem de teste enviada com SUCESSO para o número {phone}!"
+                    ))
+                else:
+                    self.root.after(0, lambda: messagebox.showerror(
+                        "Falha no Envio", 
+                        "A Evolution API não conseguiu concluir o envio. Verifique se o número possui DDD válido e se a sessão está aberta."
+                    ))
+            except Exception as e:
+                self.root.after(0, lambda: messagebox.showerror("Erro", f"Erro ao disparar mensagem de teste: {e}"))
+            finally:
+                self.root.after(0, lambda: self.btn_teste_wa.config(state="normal", text="✉️ Enviar Mensagem de Teste"))
+
+        threading.Thread(target=tarefa, daemon=True).start()
 
     def gerar_agora(self, tipo="geral"):
         btn = self.btn_gerar_agentes if tipo == "agentes" else self.btn_gerar
